@@ -1090,6 +1090,72 @@ Also in this release: `tools/make_mra.py` names `metrof64` for Grand Striker 2 (
 merged-in tree, not the games' logic): one game of each core: `metro` an older game (Dharma, Puzzli, Doukyuusei, Varia Metal), `metrod64` Mouse Shooter GoGo or Bal Cube,
 `metrof64` Blazing Tornado (the continue screen) or Grand Striker 2 (the title).
 
+## Release 20261014a: the blit queue of the I4300 boards (2026-10-14; `metro` and `metrod64` only, simulation only)
+
+**Why.**  The hardware videos of 2026-10-13 (flashing lines at the third girl of Mahjong Gakuensai, flashing blocks on every girl of Gakuensai 2) were first put down to the 68000
+being slow on the SDRAM path.  That was wrong: the whole-machine simulation with a write log (`+VDPWLOG`, `work/gk/an_wl.py`) puts the core's palette rewrite of the logo fade at
+694 + 74 writes in two frames against MAME's 696 + 72 (0.3 %); ROM reads wait 2 clocks on average and 99.9 % finish within 8 (the "quarter slower" figure of 20261012 was bus
+utilisation, not speed).
+
+**What it is.**  The games start *groups* of blits: Gakuensai writes a whole picture's tile map as two blits (the high and the low byte lane of every tile word) and the mouth patch as
+two more, one blit every ~8 lines (a software delay: the game never acknowledges the done interrupt, there are no writes to 0x788A2).  MAME runs each blit the moment the trigger
+register (0x7884C) is written and renders a frame at line `v_vis`, so a frame holds every blit started before that line, whole.  The core of 20261013a ran a blit at once when it was
+started outside the displayed window and held it (plus one queued start, the rest dropped) when it was started inside:
+
+* a group that straddled the first displayed line (blits at lines 255, 0, 8 outside; the fourth at 16 inside) showed the high byte lanes of a new picture over the low lanes of the old one:
+  scrambled blocks for one picture, every animation step;
+* a group started inside the window (lines 102 - 126) lost its third and fourth blit behind the held one: the mouth patch stayed old or showed wrong tiles for five frames.
+
+**Found with the VDP replay bench** (MAME's own writes at MAME's times, the game's CRTC window, closed-loop blitter; `work/gkrp/`: `run_mame.sh` -> `mkreplay.py` -> `metro_scene.py` ->
+`run_rp.sh`, then `cmp.py` against MAME's snapshot of every frame): the replay of Gakuensai frames 3600 - 3700 reproduced the garbled mouth blocks (with MAME's display window, line 0 on, the whole picture is scrambled for one picture: 38,038 pixels); the tile RAM read back after 30
+pictures differed from MAME's dump in exactly the 7 words of the dropped patch.  New bench options: `+TALL=1` aligns the replay at line 240, `+BLITLOG` prints every blit,
+`+VRAMDUMP=<file>` reads the video memories back through the CPU port (the layout of `tools/lua/vstate.lua`'s `.mem`).
+
+**The change** (`rtl/metro_vdp.sv`, `i_i4300` boards only: Mouja, Doukyuusei, Doukyuusei Special, Gakuensai 1 / 2): an 8-deep blit queue.
+
+* A trigger with a valid tilemap (1 - 3) pushes the three register pairs; the 68000 is not delayed.
+* At line `v_vis` (the line of the palette snapshot) the entries present are *released*; they start once the beam has left the picture (lines after `v_vis + crtc_vfirst`) and run in
+  order.  A picture therefore shows all the blits of a frame or none, and with the palette that goes with them (the snapshot taken at `v_vis` is swapped in at line
+  `v_vis + crtc_vfirst + 4`).  The display is one frame behind MAME for blit and palette alike.
+* A 68000 access to the tile RAM while blits are queued, or a trigger with the queue full, runs the queue at once (order kept; that picture may tear as before).
+* The done interrupt follows the trigger by 500 us (48,000 clocks), as MAME's `m_blit_done_timer`; a trigger within the 500 us re-arms it.  Before, it followed the blit's end.
+
+Other boards (I4100 / I4220 / family F) are untouched.
+
+**Replays against MAME (pictures that differ from MAME's frame, 20261013a sources -> new)**:
+
+```
+game / frames                          pictures   differing before (largest)   after
+Gakuensai    3600 - 3700                  100          49 (505 px: the mouth patch)    0
+Gakuensai    4000 - 4100                  100           0                              0
+Gakuensai 2  3500 - 3600                  100           0                              0
+Gakuensai 2  3700 - 4100                  400          15 (19,074 px: a scrambled picture)   0
+Doukyuusei Special 4800 - 5000            200          82 (29,015 px: half the picture)    1 (20,179 px: a palette fade frame, 4889; unchanged)
+Doukyuusei   3000 - 3200                  200           0                              0
+Mouja        4000 - 4200                  200           0                              0
+```
+
+Whole machine (committed tree against the new one, hardware CRTC window, the real SDRAM path; picture, tile RAMs, registers and sprite list byte for byte): Gakuensai, Doukyuusei,
+Doukyuusei Special and Mouja at frames 110 and 220: identical (the boot screens, so this checks that nothing hangs, not the blit groups).
+
+| Core file | Macros | Seed | Setup (96 MHz) | Hold | HDMI clock setup | ALMs | RAM blocks | DSP |
+|---|---|---|---|---|---|---|---|---|
+| `metro_20261014a` | `D_BUILD NO_YMF` | 4 | **+0.130 ns** | +0.247 ns | +0.504 ns | 29,731 (71 %) | 548 / 553 | 59 |
+| `metrod64_20261014a` | `D_BUILD F64` | 3 | **+0.495 ns** | +0.252 ns | +0.841 ns | 31,031 (74 %) | 549 / 553 | 66 |
+
+`metrof64` is unchanged (it has no I4300 board); `metrof64_20261013a` stays current.  Build id `261014a`.
+
+**Hardware result (the user, 2026-10-14, 64 MB board): the bugs reported for Mahjong Gakuensai 1 / 2 are fixed.**  The release zip `Metro_MiSTer_20261014a.zip` carries the two new
+core files and `metrof64_20261013a.rbf` unchanged (its sources differ from the tree only by the queue, which does nothing when `i_i4300` is 0: the plane, the log and the I4220 blitter
+paths are as built).
+
+**Mouse Shooter GoGo** (I4220 board, not touched by the queue): replays of MAME's writes at the frames of the heavy scenes (2270 - 2330: >1,700 tile RAM writes a frame in the visible
+lines) and of the title (780 - 960) match MAME's frames exactly except for bands of up to ~700 pixels in the top five rows and a 60 x 15 block (frames 2300 - 2325) and a 3 - 4 %
+shimmer of the title logo's colours every fourth picture (the palette cycling straddles the snapshot).  The title's scroll-in is exact.  A faster ROM path would not help (see
+above).  The whole-machine write log of the title (`work/gk/wl_msgogo_wl.txt`) is to be compared with MAME's for the CPU's timing.
+
+**Tools.**  `tools/lua/vdpwr.lua` (every 68000 write to the video chip with its time) and `tools/mkreplay.py` (events for the bench) are the replay recipe's two halves.
+
 ## Open points
 
 Toolchain: WSL Ubuntu has Verilator 5.053 (`$HOME/tools/oss-cad-suite`), g++ 9.4, GNU make 4.2.1. Run WSL commands from PowerShell, or from Git Bash with `MSYS_NO_PATHCONV=1`.
@@ -1097,10 +1163,11 @@ Toolchain: WSL Ubuntu has Verilator 5.053 (`$HOME/tools/oss-cad-suite`), g++ 9.4
 * **Known issues on the board** (README "Known issues"): the plain Daitoride's torn scanlines on the rocks (the I4220 board of the `metro` core; the YMF278B version does not
   show them; the frame-synchronous tile RAM of family F was **not** ported: its cost in logic and timing margin, a frame more latency and the blitter's start held for the log
   outweigh one game's few scanlines); Mahjong Doukyuusei's bright frame in some portrait scenes; The Karate Tournament's explosion rectangles (not re-checked since 20261010);
-  Mahjong Gakuensai 1 / 2's small graphical glitches and Mouse Shooter GoGo's small quirks (reported 2026-10-12, not analysed).
+  Mouse Shooter GoGo's small quirks (reported 2026-10-12; the VDP replays match MAME, cause not found).  Mahjong Gakuensai 1 / 2's glitches were the blitter's groups,
+  fixed in 20261014a (confirmed on the board).
 * **Not done:** Mahjong Gakuensai's EEPROM is not saved; Bang Bang Ball / Battle Bubble run at 58.2 Hz (MAME 60 Hz: they use Puzzli's scanline interrupt model, the core's
-  raster is the Dharma / Toride II one); the family C boards' 68000 program is read through the SDRAM cache and runs up to a quarter slower than MAME in simulation (a closer
-  look at the cache's refill path is the first thing to try); Puzzlet (H8/3007 CPU: MAME 0.289 does not run it either), Metabee Shot (its Z8 protection MCU has no dump) and
+  raster is the Dharma / Toride II one); the family C boards' 68000 program is read through the SDRAM cache: ROM reads wait 2 clocks on average (the "quarter slower"
+  of earlier notes was bus utilisation, not speed); Puzzlet (H8/3007 CPU: MAME 0.289 does not run it either), Metabee Shot (its Z8 protection MCU has no dump) and
   Poitto! revision C (one ROM has no known good dump) cannot be done.
 * **Build variants:** one tree, three core files (README "Three core files"). A fit of everything in one core needed 48,811 ALMs (116 % of the device, `build_all`, 2026-10-12): the
   split is a resource limit, not a choice.

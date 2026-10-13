@@ -168,7 +168,8 @@ of the games' own writes. `docs/status.md` has the measured results, the bugs fo
 
 * `metrof64`: Blazing Tornado and Grand Striker 2 play, picture and sound; the frame-synchronous tile RAM removed the flickering band of the continue screen and the dashes of
   Grand Striker 2's title.
-* `metrod64`: Mouse Shooter GoGo, Bal Cube, Daitoride (YMF278B version), Bang Bang Ball, Battle Bubble and Mahjong Gakuensai (set 2) play well, the YMF278B sounds right.
+* `metrod64`: Mouse Shooter GoGo, Bal Cube, Daitoride (YMF278B version), Bang Bang Ball, Battle Bubble and Mahjong Gakuensai 1 / 2 play well, the YMF278B sounds right. The
+  graphical glitches that Gakuensai 1 and 2 showed in 20261012 / 20261013 (flashing blocks on the girls, garbled mouth patches) are gone with the blit queue of 20261014a.
 * `metro`: hardware reports exist for Dharma Doujou, Toride II, Gun Master, Pururun, Daitoride, Puzzli, The Karate Tournament, Lady Killer, Pang Pom's, Sky Alert, Last
   Fortress, Poitto!, Mahjong Doukyuusei (+ Special) and Varia Metal. Sankokushi and Mouja are verified in simulation only (no hardware report on file).
 
@@ -176,9 +177,11 @@ of the games' own writes. `docs/status.md` has the measured results, the bugs fo
 
 * Daitoride (the plain version, `metro`): single torn scanlines on the rising rocks (the YMF278B version on `metrod64` does not show them).
 * Mahjong Doukyuusei: a bright frame in some portrait scenes. The Karate Tournament: rectangles in explosions were reported on an earlier build and not re-checked.
-* Mahjong Gakuensai 1 and 2 (`metrod64`): a few small graphical glitches; Mouse Shooter GoGo: small quirks. Neither is analysed yet.
+* Mouse Shooter GoGo (`metrod64`): small quirks (flashing lines in the busy scenes, the title scroll); a replay of MAME's own writes matches MAME to a few hundred pixels,
+  the cause is not found.
 * Bang Bang Ball and Battle Bubble run at the core's 58.2 Hz (MAME: 60 Hz). Mahjong Gakuensai's EEPROM (settings) is not saved.
-* The family C boards' 68000 gets its program through the SDRAM cache: in simulation these games run up to a quarter slower than MAME (not measured on a board).
+* The family C boards' 68000 gets its program through the SDRAM cache: ROM reads wait 2 clocks on average (99.9 % within 8 clocks in simulation), and a loop of Gakuensai's runs at
+  MAME's speed within 0.3 %. (An earlier note of "a quarter slower" counted bus cycles per frame, which is the bus utilisation, not the speed.)
 
 ## Video and sound
 

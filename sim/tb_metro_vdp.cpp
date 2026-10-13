@@ -188,7 +188,9 @@ int main(int argc, char** argv) {
         g_dump_pfx = pfx;
         long long guard2 = 0;
         int f2 = frames_seen; while (frames_seen < f2 + 2) { tick(); if (++guard2 > 400000000LL) return 1; }
-        while (!(t->vcnt == 224 && t->hcnt_o == 0)) { tick(); if (++guard2 > 400000000LL) return 1; }
+        int al_line = 224;                                                      // +TALL=1 (240-line boards): MAME's frame_done is at the end of line 239
+        if (const char* tl = plusarg(argc, argv, "+TALL=")) { if (atoi(tl)) al_line = 240; }
+        while (!(t->vcnt == al_line && t->hcnt_o == 0)) { tick(); if (++guard2 > 400000000LL) return 1; }
         long long t0 = g_ticks; size_t ei = 0; g_dump_on = true; g_dump_n = 0;
         printf("replay: %zu events, aligned at tick %lld\n", ev.size(), t0);
         while (g_dump_n < npic) {
@@ -206,6 +208,27 @@ int main(int argc, char** argv) {
             if (++guard2 > 4000000000LL) { fprintf(stderr, "replay timeout\n"); return 1; }
         }
         printf("replay: %d pictures, %zu of %zu events played\n", g_dump_n, ei, ev.size());
+        // +VRAMDUMP=<file>: the VDP's memories read back through the CPU port after the last picture, in tools/lua/vstate.lua's .mem layout (big-endian words:
+        // vram0 / vram1 / vram2 0x20000 bytes each, palette 0x2000, sprite RAM 0x1000, tile table 0x800)
+        if (const char* vd = plusarg(argc, argv, "+VRAMDUMP=")) {
+            FILE* vf = fopen(vd, "wb");
+            if (vf) {
+                struct Rg { uint32_t base, bytes; };
+                const Rg rg[] = { {0x00000, 0x20000}, {0x20000, 0x20000}, {0x40000, 0x20000}, {0x72000, 0x2000}, {0x74000, 0x1000}, {0x78000, 0x800} };
+                for (const Rg& r : rg) {
+                    for (uint32_t o = 0; o < r.bytes; o += 2) {
+                        t->cs = 1; t->addr = r.base + o; t->rnw = 1; t->be = 3;
+                        long long g3 = 0;
+                        do { tick(); if (++g3 > 100000) break; } while (!t->ack);
+                        uint16_t w = (uint16_t)t->rdata;
+                        t->cs = 0; tick();
+                        fputc(w >> 8, vf); fputc(w & 255, vf);
+                    }
+                }
+                fclose(vf);
+                printf("replay: memories written to %s\n", vd);
+            }
+        }
         return 0;
     }
     int start = frames_seen;

@@ -1080,6 +1080,13 @@ module metro_vdp #(
   // picture is drawn; MAME shows the finished state, the live renderer showed a band of old rows over new ones for a frame: the blinking line of the hardware videos.  The start is
   // accepted at once (the registers are latched), the blit runs and finishes outside the window, the done interrupt follows it.
   wire         bl_hold = i_i4300 && (vcnt >= 9'(crtc_vfirst_q)) && (vcnt <= v_vis + 9'(crtc_vfirst_q));
+  // METRO (I4300 boards, 20261014): the blit queue below feeds the blitter (bq_go + bq_h_*) and raises the done interrupt like MAME's 500 us timer.
+  logic        bq_go;                        // pulse: the blitter starts from bq_h_*
+  logic [1:0]  bq_h_tmap;
+  logic [31:0] bq_h_src;
+  logic [23:0] bq_h_dst;
+  logic        bq_force;                     // run the queued blits now (the 68000 wants the tile RAM, or the queue is full)
+  logic        bl_done_raw;
   logic              bl_rom_rd;
   logic [GFX_AW-1:0] bl_rom_addr;
   logic [15:0]       bl_rom_data;
@@ -1091,15 +1098,15 @@ module metro_vdp #(
 
   metro_blitter #(.GFX_AW(GFX_AW)) u_blit (
     .clk(clk), .rst_n(rst_n),
-    .i_start(bl_start_go), .i_hold(bl_hold),
-    .i_tmap({blit_regs[0], blit_regs[1]}),
-    .i_src ({blit_regs[2], blit_regs[3]}),
-    .i_dst ({blit_regs[4], blit_regs[5]}),
+    .i_start(i_i4300 ? bq_go : bl_start_go), .i_hold(bl_hold && !bq_force),
+    .i_tmap(i_i4300 ? {30'd0, bq_h_tmap} : {blit_regs[0], blit_regs[1]}),
+    .i_src (i_i4300 ? bq_h_src           : {blit_regs[2], blit_regs[3]}),
+    .i_dst (i_i4300 ? {8'd0, bq_h_dst}   : {blit_regs[4], blit_regs[5]}),
     .o_rom_rd(bl_rom_rd), .o_rom_addr(bl_rom_addr),
     .i_rom_data(bl_rom_data), .i_rom_valid(bl_rom_valid),
     .o_vram_we(bl_we), .o_vram_layer(bl_layer), .o_vram_addr(bl_addr),
     .o_vram_wdata(bl_wdata), .o_vram_wmask(bl_wmask),
-    .o_busy(bl_busy), .o_done(blit_done)
+    .o_busy(bl_busy), .o_done(bl_done_raw)
   );
   assign bl_rom_data = i_rom_data;        // METRO: the blitter reads 16 aligned bytes at a time (8 words)
 
@@ -1274,6 +1281,56 @@ module metro_vdp #(
   wire in_pal     = (i_addr[18:13] == 6'b111001);          // 0x72000-0x73FFF
   wire in_spr     = (i_addr[18:12] == 7'b1110100);         // 0x74000-0x74FFF
   wire in_rmw     = (i_addr >= 19'h75000 && i_addr < 19'h78000);
+
+  // ------------------------------------------------------------------
+  // I4300 blit queue (METRO, 20261014)
+  // ------------------------------------------------------------------
+  // MAME runs a blit the moment its trigger register (0x7884C) is written, and renders a frame at line v_vis: the picture holds every blit started before that line and none
+  // after it, whole.  The games do not wait for the done interrupt (Gakuensai writes no acknowledge; it paces its blits, hi / lo byte lane of one picture and a few small
+  // patches, 8 lines apart by a software delay), so a blit that ran at once, or was held and queued one deep (20261010c), either changed the tile RAM under the beam (the
+  // two lanes of a picture or of the mouth patch half done: scrambled blocks for a frame) or, behind a held blit, was dropped (the mouth patch stayed old).  The queue keeps every
+  // started blit (registers captured at the trigger) and releases them at the palette snapshot's instant (line v_vis): those start once the beam has left the picture
+  // (lines after v_vis + crtc_vfirst) and run in order, so a picture shows all the blits of a frame or none, with the palette that goes with them.  A 68000 access to the tile RAM, or a
+  // trigger with the queue full, runs the queue at once (order kept; that picture tears as before).  The done interrupt follows the trigger by 500 us, as MAME's timer does
+  // (a trigger within the 500 us re-arms it).  Other boards are untouched.
+  localparam int BQ_DEPTH = 8;
+  (* ramstyle = "MLAB" *) logic [57:0] bq_mem [0:BQ_DEPTH-1];
+  logic [2:0]  bq_wp, bq_rp;
+  logic [3:0]  bq_cnt, bq_rel;
+  logic [15:0] bq_irq_cnt;
+  logic        bq_irq;
+  wire         bq_tmap_ok = ({blit_regs[0], blit_regs[1]} >= 32'd1) && ({blit_regs[0], blit_regs[1]} <= 32'd3);
+  wire         bq_push = i_i4300 && bl_start && bq_tmap_ok;
+  wire         bq_pend = i_i4300 && (bq_cnt != 4'd0 || bq_go);
+  wire         bq_full = (bq_cnt == 4'(BQ_DEPTH));
+  wire         bq_trig = i_i4300 && i_cs && !i_rnw && ((i_addr & 19'h7FFFE) == 19'h7884C);   // the trigger write the 68000 is making
+  wire         bq_cpu  = i_i4300 && i_cs && (in_vram || in_rmw);
+  assign       bq_force = (bq_cpu && bq_pend) || (bq_trig && bq_full);
+  wire         bq_pop  = i_i4300 && (bq_cnt != 4'd0) && !bl_busy && !bq_go && ((bq_rel != 4'd0 && !bl_hold) || bq_force);
+  wire         bq_t    = line_start && (next_v == v_vis);                                  // MAME's render instant (the palette snapshot's line)
+  wire  [3:0]  bq_cnt_n = bq_cnt + 4'(bq_push) - 4'(bq_pop);
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      bq_wp <= '0; bq_rp <= '0; bq_cnt <= '0; bq_rel <= '0; bq_go <= 1'b0; bq_irq_cnt <= '0; bq_irq <= 1'b0;
+    end else begin
+      bq_go  <= bq_pop;
+      bq_irq <= (bq_irq_cnt == 16'd1);
+      if (bq_push)               bq_irq_cnt <= 16'd48000;
+      else if (bq_irq_cnt != 16'd0) bq_irq_cnt <= bq_irq_cnt - 16'd1;
+      if (bq_push) begin
+        bq_mem[bq_wp] <= {blit_regs[1][1:0], blit_regs[2], blit_regs[3], blit_regs[4][7:0], blit_regs[5]};
+        bq_wp <= bq_wp + 3'd1;
+      end
+      if (bq_pop) begin
+        {bq_h_tmap, bq_h_src, bq_h_dst} <= bq_mem[bq_rp];
+        bq_rp <= bq_rp + 3'd1;
+      end
+      bq_cnt <= bq_cnt_n;
+      if (bq_t)                          bq_rel <= bq_cnt_n;
+      else if (bq_pop && bq_rel != 4'd0) bq_rel <= bq_rel - 4'd1;
+    end
+  end
+  assign blit_done = i_i4300 ? bq_irq : bl_done_raw;
   wire in_tt      = (i_addr >= 19'h78000 && i_addr < 19'h78800);
   wire [1:0] rmw_lyr = 2'((i_addr - 19'h75000) >> 12);
   wire [10:0] rmw_o  = i_addr[11:1];
@@ -1308,7 +1365,7 @@ module metro_vdp #(
   // vram port A drive logic (combinational -> metro_dpram instances)
   wire [1:0] cpu_wr_lyr = in_rmw ? rmw_lyr : vlyr;
   wire cpu_vram_wr = (bst == B_IDLE) && i_cs && !i_rnw
-                   && (in_vram || in_rmw) && !bl_busy && !bl_start_h && dir_ok;
+                   && (in_vram || in_rmw) && !bl_busy && !bl_start_h && !bq_pend && dir_ok;
 
   // the log being applied (P_VLOG) and the blitter never write together with the 68000 (the log is empty while the blitter runs): they are merged first, from registers
   wire         x_we  = ap_we_v || bl_we;
@@ -1794,8 +1851,10 @@ module metro_vdp #(
         B_IDLE: begin
           o_ack <= 1'b0;
           if (i_cs) begin
-            if ((in_vram || in_rmw) && (bl_busy || bl_start_h)) begin
+            if ((in_vram || in_rmw) && (bl_busy || bl_start_h || bq_pend)) begin
               // stall until blitter releases VRAM
+            end else if (bq_trig && bq_full) begin
+              // METRO (I4300): the blit queue is full: the trigger waits for room (the queue is run at once meanwhile)
             end else if (!i_rnw && spr_wr_hold) begin
               // METRO (family F): stall until the sprite list copy is done
             end else if (lg_hold) begin

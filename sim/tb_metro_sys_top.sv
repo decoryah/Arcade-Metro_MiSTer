@@ -577,6 +577,17 @@ module tb_metro_sys_top (
             as_frame_n <= as_frame_n + 1; as_frame <= 0;
         end
     end
+    // +VDPWLOG=<file>: every 68000 write to the video chip's window (frame, clock, chip line, byte address, data: W) and the start of every palette snapshot (C)
+    int vw_fd = 0;
+    logic pcr_q = 1'b0;
+    initial begin string vn; if ($value$plusargs("VDPWLOG=%s", vn)) vw_fd = $fopen(vn, "w"); end
+    always_ff @(posedge clk) begin
+        pcr_q <= dut.u_vdp.pal_cp_run;
+        if (vw_fd != 0) begin
+            if (trc_stb && !trc_rw) $fdisplay(vw_fd, "W %0d %0d %0d %06x %04x", as_frame_n, clk_n, int'(dut.u_vdp.vcnt), {trc_addr, 1'b0}, trc_data);
+            if (dut.u_vdp.pal_cp_run && !pcr_q) $fdisplay(vw_fd, "C %0d %0d %0d", as_frame_n, clk_n, int'(dut.u_vdp.vcnt));
+        end
+    end
     // +BLIT0=<frame> +BLIT1=<frame>: every blit (start line, clocks until the blitter is idle again, whether it ended on its STOP opcode)
     int bt0 = -1, bt1 = -1;
     initial begin if (!$value$plusargs("BLIT0=%d", bt0)) bt0 = -1; if (!$value$plusargs("BLIT1=%d", bt1)) bt1 = -1; end

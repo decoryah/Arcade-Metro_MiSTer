@@ -114,6 +114,22 @@ module tb_metro_vdp_top #(
     .o_dbg_topflags(),
     .o_st(vdp_st)
   );
+  // +BLITLOG: every blit (clock and chip line of the start, clocks until the blitter is idle again)
+  longint bl_clk = 0, bl_t0 = 0;
+  int bl_line = 0;
+  logic bl_run = 1'b0, bl_seen = 1'b0, bl_log;
+  initial bl_log = $test$plusargs("BLITLOG");
+  always_ff @(posedge clk) begin
+    bl_clk <= bl_clk + 1;
+    if (bl_log) begin
+      if (dut.bl_start_go) begin bl_t0 <= bl_clk; bl_line <= int'(dut.vcnt); bl_run <= 1'b1; bl_seen <= 1'b0; end
+      if (bl_run && dut.bl_busy) bl_seen <= 1'b1;
+      if (bl_run && bl_seen && !dut.bl_busy && !dut.bl_start_go) begin
+        $display("BLIT clk %0d line %0d: %0d clocks (%0d lines)", bl_t0, bl_line, bl_clk - bl_t0, (bl_clk - bl_t0) / 6272);
+        bl_run <= 1'b0;
+      end
+    end
+  end
   logic [255:0] vdp_st, roz_st;
 
   // ---- family F: the 053936 plane with the state of a MAME frame (+ROZ=<file.roz> from tools/lua/vstate.lua VS_ROZ=1, +GFX2=<2 MB tile ROM>)
