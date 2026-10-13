@@ -1,0 +1,68 @@
+<misterromdescription>
+    <rotation>horizontal</rotation>
+    <name>Daitoride (Japan, YMF278B version)</name>
+    <setname>daitorida</setname>
+    <mameversion>0289</mameversion>
+    <year>1996</year>
+    <manufacturer>Metro</manufacturer>
+    <players>2</players>
+    <joystick>8</joystick>
+    <rbf>metrod64</rbf>
+    <platform>Metro</platform>
+
+    <!--
+      Flat image for the Metro core (uPD7810 families), the same layout for every set (tools/metro_rom.py):
+        0x000000  0x000020  configuration: [0] board [1] rotation [2] GFX scramble (0 none, 1 init_dharmak, 2 init_balcube) [3:6] GFX size
+        0x010000  0x080000  maincpu
+        0x100000  0x200000  gfx (the set's vdp / vdp2 region)
+        0x300000  0x280000  oki
+
+      Expects the MAME 0.289 merged romset or the split sets: parts are found by name and CRC.
+      The ROMs are stored as dumped; the core applies the driver's GFX descramble (configuration byte 2).
+      DIP switches (ioctl index 254): byte 0 is MAME's DSW0 bits 0-7, byte 1 bits 8-15; the boards with a second port (DSW1) have it in bytes 2 and 3; a 1 is MAME's default setting.
+    -->
+    <switches default="FF,FF" base="16">
+        <dip bits="0,1,2" name="Coin A" ids="Free Play,4 Coins/1 Credit,3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,1 Coin/1 Credit"/>
+        <dip bits="3,4,5" name="Coin B" ids="Free Play,4 Coins/1 Credit,3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,1 Coin/1 Credit"/>
+        <dip bits="6" name="Flip Screen" ids="On,Off"/>
+        <dip bits="7" name="Service Mode" ids="On,Off"/>
+        <dip bits="8,9" name="Timer Speed" ids="Fastest,Fast,Slower,Normal"/>
+        <dip bits="10" name="Unused" ids="On,Off"/>
+        <dip bits="11" name="Winning Rounds (Player VS Player)" ids="1/1,2/3"/>
+        <dip bits="12,13" name="Allow Continue" ids="Retry Level,No,Ask Player,Retry Level"/>
+        <dip bits="14" name="Demo Sounds" ids="Off,On"/>
+        <dip bits="15" name="Unused" ids="On,Off"/>
+    </switches>
+
+    <buttons names="Button 1,Button 2,Start,Coin,Button 3" default="A,B,Start,Select,X"/>
+
+    <rom index="0" zip="daitorida.zip|daitorid.zip" md5="None">
+
+        <!-- configuration -->
+        <part>18 00 02 00 00 20 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00</part>
+
+        <!-- unused -->
+        <part repeat="0xFFE0">00</part>
+
+        <!-- maincpu -->
+        <interleave output="16">
+            <part name="dt_ja-6.6" crc="c753954e" map="01"/>
+            <part name="dt_ja-5.5" crc="c4340290" map="10"/>
+        </interleave>
+
+        <!-- unused -->
+        <part repeat="0x70000">00</part>
+
+        <!-- gfx -->
+        <interleave output="64">
+            <part name="dt_ja-2.2" crc="6a262249" map="00000021"/>
+            <part name="dt_ja-4.4" crc="cdcef57a" map="00002100"/>
+            <part name="dt_ja-1.1" crc="a6ccb1d2" map="00210000"/>
+            <part name="dt_ja-3.3" crc="32353e04" map="21000000"/>
+        </interleave>
+
+        <!-- oki -->
+        <part name="yrw801-m" crc="2a9d8d43"/>
+        <part name="dt_ja-7.7" crc="7a2d3222"/>
+    </rom>
+</misterromdescription>

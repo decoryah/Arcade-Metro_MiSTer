@@ -1,0 +1,64 @@
+<misterromdescription>
+    <rotation>horizontal</rotation>
+    <name>Mahjong Gakuensai 2 (Japan)</name>
+    <setname>gakusai2</setname>
+    <mameversion>0289</mameversion>
+    <year>1998</year>
+    <manufacturer>MakeSoft</manufacturer>
+    <players>2</players>
+    <joystick>8</joystick>
+    <rbf>metrod64</rbf>
+    <platform>Metro</platform>
+
+    <!--
+      Flat image for the Metro core (uPD7810 families), the same layout for every set (tools/metro_rom.py):
+        0x000000  0x000020  configuration: [0] board [1] rotation [2] GFX scramble (0 none, 1 init_dharmak, 2 init_balcube) [3:6] GFX size
+        0x010000  0x080000  maincpu
+        0x100000  0x2000000  gfx (the set's vdp / vdp2 region)
+        0x2100000  0x400000  oki
+
+      Expects the MAME 0.289 merged romset or the split sets: parts are found by name and CRC.
+      The ROMs are stored as dumped; the core applies the driver's GFX descramble (configuration byte 2).
+      DIP switches (ioctl index 254): byte 0 is MAME's DSW0 bits 0-7, byte 1 bits 8-15; the boards with a second port (DSW1) have it in bytes 2 and 3; a 1 is MAME's default setting.
+    -->
+    <switches default="00,00" base="16">
+    </switches>
+
+    <buttons names="Button 1,Button 2,Start,Coin,Button 3" default="A,B,Start,Select,X"/>
+
+    <rom index="0" zip="gakusai2.zip" md5="None">
+
+        <!-- configuration -->
+        <part>15 00 00 00 00 00 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00</part>
+
+        <!-- unused -->
+        <part repeat="0xFFE0">00</part>
+
+        <!-- maincpu -->
+        <interleave output="16">
+            <part name="mg2a06.bin" crc="8b006dd4" map="01"/>
+            <part name="mg2a05.bin" crc="7702b9ac" map="10"/>
+        </interleave>
+        <part repeat="0x40000">00</part>
+
+        <!-- unused -->
+        <part repeat="0x70000">00</part>
+
+        <!-- gfx -->
+        <interleave output="64">
+            <part name="mg22l.bin" crc="28366708" map="00000021"/>
+            <part name="mg24l.bin" crc="9e003bb0" map="00002100"/>
+            <part name="mg21l.bin" crc="3827098d" map="00210000"/>
+            <part name="mg23l.bin" crc="a6f96961" map="21000000"/>
+        </interleave>
+        <interleave output="64">
+            <part name="mg22u.bin" crc="53ffa68a" map="00000021"/>
+            <part name="mg24u.bin" crc="c218e9ab" map="00002100"/>
+            <part name="mg21u.bin" crc="385495e5" map="00210000"/>
+            <part name="mg23u.bin" crc="d8315923" map="21000000"/>
+        </interleave>
+
+        <!-- oki -->
+        <part name="mg2-7.bin" crc="2f1c041e"/>
+    </rom>
+</misterromdescription>

@@ -1,0 +1,70 @@
+<misterromdescription>
+    <rotation>horizontal</rotation>
+    <name>Mouja (Japan)</name>
+    <setname>mouja</setname>
+    <mameversion>0289</mameversion>
+    <year>1996</year>
+    <manufacturer>Etona</manufacturer>
+    <players>2</players>
+    <joystick>8</joystick>
+    <rbf>metro</rbf>
+    <platform>Metro</platform>
+
+    <!--
+      Flat image for the Metro core (uPD7810 families), the same layout for every set (tools/metro_rom.py):
+        0x000000  0x000020  configuration: [0] board [1] rotation [2] GFX scramble (0 none, 1 init_dharmak, 2 init_balcube) [3:6] GFX size
+        0x010000  0x080000  maincpu
+        0x100000  0x400000  gfx (the set's vdp / vdp2 region)
+        0x500000  0x100000  oki
+
+      Expects the MAME 0.289 merged romset or the split sets: parts are found by name and CRC.
+      The ROMs are stored as dumped; the core applies the driver's GFX descramble (configuration byte 2).
+      DIP switches (ioctl index 254): byte 0 is MAME's DSW0 bits 0-7, byte 1 bits 8-15; the boards with a second port (DSW1) have it in bytes 2 and 3; a 1 is MAME's default setting.
+    -->
+    <switches default="F7,F7" base="16">
+        <dip bits="0" name="Free Play" ids="On,Off"/>
+        <dip bits="1" name="Flip Screen" ids="On,Off"/>
+        <dip bits="2" name="Service Mode" ids="On,Off"/>
+        <dip bits="3" name="Demo Sounds" ids="On,Off"/>
+        <dip bits="4,5" name="Coin A" ids="3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/2 Credits,1 Coin/1 Credit"/>
+        <dip bits="6,7" name="Coin B" ids="3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/2 Credits,1 Coin/1 Credit"/>
+        <dip bits="8,9" name="Difficulty" ids="Hardest,Hard,Easy,Normal"/>
+        <dip bits="10" name="Allow Continue" ids="No,Yes"/>
+        <dip bits="11" name="Round Count (single player)" ids="2/3,1/1"/>
+        <dip bits="12" name="Round Count (two players)" ids="2/3,1/1"/>
+        <dip bits="13" name="Unused" ids="On,Off"/>
+        <dip bits="14" name="Unused" ids="On,Off"/>
+        <dip bits="15" name="Unused" ids="On,Off"/>
+    </switches>
+
+    <buttons names="Button 1,Button 2,Start,Coin,Button 3" default="A,B,Start,Select,X"/>
+
+    <rom index="0" zip="mouja.zip" md5="None">
+
+        <!-- configuration -->
+        <part>0F 00 00 00 00 40 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00</part>
+
+        <!-- unused -->
+        <part repeat="0xFFE0">00</part>
+
+        <!-- maincpu -->
+        <interleave output="16">
+            <part name="10.u38" crc="f9742b69" map="01"/>
+            <part name="9.u39" crc="dc77216f" map="10"/>
+        </interleave>
+
+        <!-- unused -->
+        <part repeat="0x70000">00</part>
+
+        <!-- gfx -->
+        <interleave output="64">
+            <part name="lh53882c.u6" crc="c4dd3194" map="00000021"/>
+            <part name="lh53882e.u5" crc="09530f9d" map="00002100"/>
+            <part name="lh53882b.u4" crc="5dd7a7b2" map="00210000"/>
+            <part name="lh53882d.u1" crc="430c3925" map="21000000"/>
+        </interleave>
+
+        <!-- oki -->
+        <part name="lh538711.u53" crc="fe3df432"/>
+    </rom>
+</misterromdescription>

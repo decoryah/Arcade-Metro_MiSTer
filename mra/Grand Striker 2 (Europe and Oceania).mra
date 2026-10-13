@@ -1,0 +1,96 @@
+<misterromdescription>
+    <rotation>horizontal</rotation>
+    <name>Grand Striker 2 (Europe and Oceania)</name>
+    <setname>gstrik2</setname>
+    <mameversion>0289</mameversion>
+    <year>1996</year>
+    <manufacturer>Human Amusement</manufacturer>
+    <players>2</players>
+    <joystick>8</joystick>
+    <rbf>metrof64</rbf>
+    <platform>Metro</platform>
+
+    <!--
+      Flat image for the Metro core (uPD7810 families), the same layout for every set (tools/metro_rom.py):
+        0x000000  0x000020  configuration: [0] board [1] rotation [2] GFX scramble (0 none, 1 init_dharmak, 2 init_balcube) [3:6] GFX size
+        0x100000  0x1000000  gfx (the set's vdp / vdp2 region)
+        0x1100000  0x200000  maincpu
+        0x1300000  0x020000  audiocpu
+        0x1320000  0x200000  gfx2
+        0x1520000  0x200000  adpcmb
+        0x1720000  0x400000  adpcma
+
+      Expects the MAME 0.289 merged romset or the split sets: parts are found by name and CRC.
+      The ROMs are stored as dumped; the core applies the driver's GFX descramble (configuration byte 2).
+      DIP switches (ioctl index 254): byte 0 is MAME's DSW0 bits 0-7, byte 1 bits 8-15; the boards with a second port (DSW1) have it in bytes 2 and 3; a 1 is MAME's default setting.
+    -->
+    <switches default="FF,FC,FF,FF" base="16">
+        <dip bits="0,1" name="Player Vs Com" ids="2:30,2:00,1:30,1:00"/>
+        <dip bits="2,3" name="1P Vs 2P" ids="2:00,1:30,1:00,0:45"/>
+        <dip bits="4,5" name="Extra Time" ids="Off,1:00,0:45,0:30"/>
+        <dip bits="6" name="Unknown" ids="On,Off"/>
+        <dip bits="7" name="Time Period" ids="Full,Sudden Death"/>
+        <dip bits="8,9,10" name="Difficulty" ids="Very Hard,Hardest,Hard,Medium,Normal,Easy,Easier,Very Easy"/>
+        <dip bits="11" name="Demo Sounds" ids="Off,On"/>
+        <dip bits="12" name="Unknown" ids="On,Off"/>
+        <dip bits="13" name="Unknown" ids="On,Off"/>
+        <dip bits="14" name="Flip Screen" ids="On,Off"/>
+        <dip bits="15" name="Service Mode" ids="On,Off"/>
+        <dip bits="16,17,18,19,20" name="Coin A" ids="4 Coins/8 Credits,3 Coins/8 Credits,2 Coins/8 Credits,1 Coin/8 Credits,4 Coins/7 Credits,3 Coins/7 Credits,2 Coins/7 Credits,1 Coin/7 Credits,4 Coins/6 Credits,3 Coins/6 Credits,2 Coins/6 Credits,1 Coin/6 Credits,4 Coins/5 Credits,3 Coins/5 Credits,2 Coins/5 Credits,1 Coin/5 Credits,4 Coins/4 Credits,3 Coins/4 Credits,2 Coins/4 Credits,1 Coin/4 Credits,4 Coins/3 Credits,3 Coins/3 Credits,2 Coins/3 Credits,1 Coin/3 Credits,4 Coins/2 Credits,3 Coins/2 Credits,2 Coins/2 Credits,1 Coin/2 Credits,4 Coins/1 Credit,3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/1 Credit"/>
+        <dip bits="21,22,23" name="Coin B" ids="1 Coin/7 Credits,1 Coin/6 Credits,1 Coin/5 Credits,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,1 Coin/1 Credit,Same as Coin A"/>
+        <dip bits="24,25" name="Credits to Start" ids="4,3,2,1"/>
+        <dip bits="26,27" name="Credits to Continue" ids="4,3,2,1"/>
+        <dip bits="28" name="Continue" ids="Off,On"/>
+        <dip bits="29" name="Unknown" ids="On,Off"/>
+        <dip bits="30" name="Playmode" ids="1 Credit for 2 Players,1 Credit for 1 Player"/>
+        <dip bits="31" name="Free Play" ids="On,Off"/>
+    </switches>
+
+    <buttons names="Button 1,Button 2,Start,Coin,Button 3,Button 4" default="A,B,Start,Select,X,Y"/>
+
+    <rom index="0" zip="gstrik2.zip" md5="None">
+
+        <!-- configuration -->
+        <part>13 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00</part>
+
+        <!-- unused -->
+        <part repeat="0xFFFE0">00</part>
+
+        <!-- gfx -->
+        <interleave output="64">
+            <part name="chr0.80" crc="f63a52a9" map="00000021"/>
+            <part name="chr1.79" crc="4110c184" map="00002100"/>
+            <part name="chr2.78" crc="ddb4b9ee" map="00210000"/>
+            <part name="chr3.77" crc="5ab367db" map="21000000"/>
+        </interleave>
+        <interleave output="64">
+            <part name="chr4.84" crc="77d7ef99" map="00000021"/>
+            <part name="chr5.83" crc="a4d49e95" map="00002100"/>
+            <part name="chr6.82" crc="32eb33b0" map="00210000"/>
+            <part name="chr7.81" crc="2d30a21e" map="21000000"/>
+        </interleave>
+
+        <!-- maincpu -->
+        <interleave output="16">
+            <part name="hum_003_g2f.rom1.u107" crc="2712d9ca" map="01"/>
+            <part name="hum_003_g2f.rom2.u108" crc="86785c64" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="prg2.109" crc="ead86919" map="01"/>
+            <part name="prg3.110" crc="e0b026e3" map="10"/>
+        </interleave>
+
+        <!-- audiocpu -->
+        <part name="sprg.30" crc="aeef6045"/>
+
+        <!-- gfx2 -->
+        <part name="psacrom.60" crc="73f1f279"/>
+
+        <!-- adpcmb -->
+        <part name="sndpcm-b.22" crc="a5d844d2"/>
+
+        <!-- adpcma -->
+        <part name="sndpcm-a.23" crc="e6d32373"/>
+        <part repeat="0x200000">00</part>
+    </rom>
+</misterromdescription>

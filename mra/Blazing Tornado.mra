@@ -1,0 +1,104 @@
+<misterromdescription>
+    <rotation>horizontal</rotation>
+    <name>Blazing Tornado</name>
+    <setname>blzntrnd</setname>
+    <mameversion>0289</mameversion>
+    <year>1994</year>
+    <manufacturer>Human Amusement</manufacturer>
+    <players>2</players>
+    <joystick>8</joystick>
+    <rbf>metrof64</rbf>
+    <platform>Metro</platform>
+
+    <!--
+      Flat image for the Metro core (uPD7810 families), the same layout for every set (tools/metro_rom.py):
+        0x000000  0x000020  configuration: [0] board [1] rotation [2] GFX scramble (0 none, 1 init_dharmak, 2 init_balcube) [3:6] GFX size
+        0x100000  0x1800000  gfx (the set's vdp / vdp2 region)
+        0x1900000  0x200000  maincpu
+        0x1B00000  0x020000  audiocpu
+        0x1B20000  0x200000  gfx2
+        0x1D20000  0x200000  adpcmb
+        0x1F20000  0x400000  adpcma
+
+      Expects the MAME 0.289 merged romset or the split sets: parts are found by name and CRC.
+      The ROMs are stored as dumped; the core applies the driver's GFX descramble (configuration byte 2).
+      DIP switches (ioctl index 254): byte 0 is MAME's DSW0 bits 0-7, byte 1 bits 8-15; the boards with a second port (DSW1) have it in bytes 2 and 3; a 1 is MAME's default setting.
+    -->
+    <switches default="0C,FF,FF,FF" base="16">
+        <dip bits="0,1,2" name="Difficulty" ids="Master,Expert,Hardest,Hard,Normal,Easy,Easiest,Beginner"/>
+        <dip bits="3" name="Flip Screen" ids="On,Off"/>
+        <dip bits="4" name="Demo Sounds" ids="On,Off"/>
+        <dip bits="5" name="Allow Continue" ids="Yes,No"/>
+        <dip bits="6,7" name="Control Panel" ids="4 Players,Unused,1P &amp; 2P Tag only,1P &amp; 2P vs only"/>
+        <dip bits="8,9" name="Half Continue" ids="6C to start, 3C to continue,4C to start, 2C to continue,2C to start, 1C to continue,Disabled"/>
+        <dip bits="10" name="Unused" ids="On,Off"/>
+        <dip bits="11" name="Unused" ids="On,Off"/>
+        <dip bits="12" name="Unused" ids="On,Off"/>
+        <dip bits="13" name="Unused" ids="On,Off"/>
+        <dip bits="14" name="Unused" ids="On,Off"/>
+        <dip bits="15" name="Unused" ids="On,Off"/>
+        <dip bits="16,17,18" name="Coin A" ids="1 Coin/5 Credits,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,4 Coins/1 Credit,3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/1 Credit"/>
+        <dip bits="19,20,21" name="Coin B" ids="1 Coin/5 Credits,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,4 Coins/1 Credit,3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/1 Credit"/>
+        <dip bits="22" name="Free Play" ids="On,Off"/>
+        <dip bits="23" name="Service Mode" ids="On,Off"/>
+        <dip bits="24,25" name="CP Single" ids="3:30,3:00,2:30,2:00"/>
+        <dip bits="26,27" name="CP Tag" ids="3:30,3:00,2:30,2:00"/>
+        <dip bits="28,29" name="Vs Single" ids="5:00,4:00,3:00,2:30"/>
+        <dip bits="30,31" name="Vs Tag" ids="5:00,4:00,3:00,2:30"/>
+    </switches>
+
+    <buttons names="Button 1,Button 2,Start,Coin,Button 3,Button 4" default="A,B,Start,Select,X,Y"/>
+
+    <rom index="0" zip="blzntrnd.zip" md5="None">
+
+        <!-- configuration -->
+        <part>12 00 00 00 00 80 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00</part>
+
+        <!-- unused -->
+        <part repeat="0xFFFE0">00</part>
+
+        <!-- gfx -->
+        <interleave output="64">
+            <part name="rom142.bin" crc="a7200598" map="00000021"/>
+            <part name="rom186.bin" crc="6ee28ea7" map="00002100"/>
+            <part name="rom131.bin" crc="c77e75d3" map="00210000"/>
+            <part name="rom175.bin" crc="04a84f9b" map="21000000"/>
+        </interleave>
+        <interleave output="64">
+            <part name="rom242.bin" crc="1182463f" map="00000021"/>
+            <part name="rom286.bin" crc="384424fc" map="00002100"/>
+            <part name="rom231.bin" crc="f0812362" map="00210000"/>
+            <part name="rom275.bin" crc="184cb129" map="21000000"/>
+        </interleave>
+        <interleave output="64">
+            <part name="rom342.bin" crc="e527fee5" map="00000021"/>
+            <part name="rom386.bin" crc="d10b1401" map="00002100"/>
+            <part name="rom331.bin" crc="4d909c28" map="00210000"/>
+            <part name="rom375.bin" crc="6eb4f97c" map="21000000"/>
+        </interleave>
+
+        <!-- maincpu -->
+        <interleave output="16">
+            <part name="1k.bin" crc="b007893b" map="01"/>
+            <part name="2k.bin" crc="ec173252" map="10"/>
+        </interleave>
+        <interleave output="16">
+            <part name="3k.bin" crc="1e230ba2" map="01"/>
+            <part name="4k.bin" crc="e98ca99e" map="10"/>
+        </interleave>
+
+        <!-- audiocpu -->
+        <part name="rom5.bin" crc="7e90b774"/>
+
+        <!-- gfx2 -->
+        <part name="rom9.bin" crc="37ca3570"/>
+
+        <!-- adpcmb -->
+        <part name="rom8.bin" crc="565a4086"/>
+        <part repeat="0x180000">00</part>
+
+        <!-- adpcma -->
+        <part name="rom6.bin" crc="8b8819fc"/>
+        <part name="rom7.bin" crc="0089a52b"/>
+    </rom>
+</misterromdescription>

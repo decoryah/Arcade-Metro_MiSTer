@@ -1,0 +1,67 @@
+<misterromdescription>
+    <rotation>horizontal</rotation>
+    <name>Battle Bubble (v2.00)</name>
+    <setname>batlbubl</setname>
+    <mameversion>0289</mameversion>
+    <year>1999</year>
+    <manufacturer>Banpresto (Limenko license?)</manufacturer>
+    <players>2</players>
+    <joystick>8</joystick>
+    <rbf>metrod64</rbf>
+    <platform>Metro</platform>
+
+    <!--
+      Flat image for the Metro core (uPD7810 families), the same layout for every set (tools/metro_rom.py):
+        0x000000  0x000020  configuration: [0] board [1] rotation [2] GFX scramble (0 none, 1 init_dharmak, 2 init_balcube) [3:6] GFX size
+        0x100000  0x800000  gfx (the set's vdp / vdp2 region)
+        0x900000  0x100000  maincpu
+        0xA00000  0x280000  oki
+
+      Expects the MAME 0.289 merged romset or the split sets: parts are found by name and CRC.
+      The ROMs are stored as dumped; the core applies the driver's GFX descramble (configuration byte 2).
+      DIP switches (ioctl index 254): byte 0 is MAME's DSW0 bits 0-7, byte 1 bits 8-15; the boards with a second port (DSW1) have it in bytes 2 and 3; a 1 is MAME's default setting.
+    -->
+    <switches default="FF,FF" base="16">
+        <dip bits="0,1" name="Difficulty" ids="Hardest,Hard,Easy,Normal"/>
+        <dip bits="2,3" name="Lives" ids="5,3,2,4"/>
+        <dip bits="4" name="Allow Continue" ids="No,Yes"/>
+        <dip bits="5" name="Demo Sounds" ids="Off,On"/>
+        <dip bits="6" name="Unknown" ids="On,Off"/>
+        <dip bits="7" name="Unknown" ids="On,Off"/>
+        <dip bits="8,9,10" name="Coin A" ids="Free Play,4 Coins/1 Credit,3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,1 Coin/1 Credit"/>
+        <dip bits="11,12,13" name="Coin B" ids="Free Play,4 Coins/1 Credit,3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,1 Coin/1 Credit"/>
+        <dip bits="14" name="Flip Screen" ids="On,Off"/>
+        <dip bits="15" name="Service Mode" ids="On,Off"/>
+    </switches>
+
+    <buttons names="Button 1,Button 2,Start,Coin,Button 3" default="A,B,Start,Select,X"/>
+
+    <rom index="0" zip="batlbubl.zip|bangball.zip" md5="None">
+
+        <!-- configuration -->
+        <part>1A 00 02 00 00 80 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00</part>
+
+        <!-- unused -->
+        <part repeat="0xFFFE0">00</part>
+
+        <!-- gfx -->
+        <interleave output="64">
+            <part name="lm-07.u30" crc="03d9dfd8" map="00000021"/>
+            <part name="lm-06.u29" crc="5efb905b" map="00002100"/>
+            <part name="lm-05.u28" crc="e53ba59f" map="00210000"/>
+            <part name="lm-04.u27" crc="2e687cfb" map="21000000"/>
+        </interleave>
+
+        <!-- maincpu -->
+        <interleave output="16">
+            <part name="lm-01.u11" crc="1d562807" map="12"/>
+        </interleave>
+        <interleave output="16">
+            <part name="lm-02.u12" crc="852e4750" map="12"/>
+        </interleave>
+
+        <!-- oki -->
+        <part name="lm-08.u40" crc="2a9d8d43"/>
+        <part name="lm-03.u42" crc="04cc91a9"/>
+    </rom>
+</misterromdescription>

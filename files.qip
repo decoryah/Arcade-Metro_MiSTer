@@ -1,0 +1,106 @@
+set_global_assignment -name SDC_FILE Metro.sdc
+# Metro core file list. `source`d by Metro.qsf, so paths are plain and relative to the project directory (the repository root).
+# Only real .qip files (loaded via QIP_FILE) may use $::quartus(qip_path).
+
+set_global_assignment -name SYSTEMVERILOG_FILE Metro.sv
+set_global_assignment -name QIP_FILE rtl/pll.qip
+
+# the machine
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_cen.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_main.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_romif.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_loader.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_sdram.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_vout.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_standby.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_crtadj.sv
+set_global_assignment -name SYSTEMVERILOG_FILE modules/crt_adjust/crt_adjust.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_eeprom.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_es8712.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_okimux.sv
+# the YMF278B (OPL4) of family C: Mouse Shooter GoGo, Bal Cube, Daitoride (YMF278B version).  rtl/ymf278b*.sv = srg320's engine (Arcade-PsikyoSH2_MiSTer, derived from MAME's ymf278b)
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ymf278b_pkg.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ymf278b.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_ymf.sv
+
+# the Imagetek video chip (derived from searchsolved/Arcade-HyperDuel_MiSTer, GPL-3.0-or-later; rtl/UPSTREAM.md)
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_vdp.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_roz.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_render.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_blitter.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_dpram.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_tdpram.sv
+
+# fx68k 68000 (GPL-3, Jorge Cwik); microrom.mem / nanorom.mem are read from the project directory
+set_global_assignment -name SYSTEMVERILOG_FILE modules/cpu-fx68k/fx68kAlu.sv
+set_global_assignment -name SYSTEMVERILOG_FILE modules/cpu-fx68k/uaddrPla.sv
+set_global_assignment -name SYSTEMVERILOG_FILE modules/cpu-fx68k/fx68k.sv
+
+# the sound board: uPD78C10 (the handlers in rtl/upd78c10_ops.svh etc. are generated from MAME's code by sim/upd78c10/gen_rtl.py and `include`d),
+# its glue with a YM2413 and an OKI M6295, and the arbiter that shares the main-ROM client of the SDRAM controller
+set_global_assignment -name SEARCH_PATH rtl
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/upd78c10.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_sound.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_mrom_arb.sv
+
+# IKAOPLL (YM2413, BSD-2-Clause) and jt6295 (OKI M6295, GPL-3.0, INTERPOL=0), vendored in modules/ (modules/VENDOR.md)
+set_global_assignment -name VERILOG_FILE modules/ikaopll/IKAOPLL.v
+set_global_assignment -name VERILOG_FILE modules/ikaopll/IKAOPLL_modules/IKAOPLL_dac.v
+set_global_assignment -name VERILOG_FILE modules/ikaopll/IKAOPLL_modules/IKAOPLL_eg.v
+set_global_assignment -name VERILOG_FILE modules/ikaopll/IKAOPLL_modules/IKAOPLL_lfo.v
+set_global_assignment -name VERILOG_FILE modules/ikaopll/IKAOPLL_modules/IKAOPLL_op.v
+set_global_assignment -name VERILOG_FILE modules/ikaopll/IKAOPLL_modules/IKAOPLL_pg.v
+set_global_assignment -name VERILOG_FILE modules/ikaopll/IKAOPLL_modules/IKAOPLL_primitives.v
+set_global_assignment -name VERILOG_FILE modules/ikaopll/IKAOPLL_modules/IKAOPLL_reg.v
+set_global_assignment -name VERILOG_FILE modules/ikaopll/IKAOPLL_modules/IKAOPLL_timinggen.v
+set_global_assignment -name SEARCH_PATH modules/ikaopll
+set_global_assignment -name VERILOG_FILE modules/jt6295/hdl/jt6295.v
+set_global_assignment -name VERILOG_FILE modules/jt6295/hdl/jt6295_adpcm.v
+set_global_assignment -name VERILOG_FILE modules/jt6295/hdl/jt6295_timing.v
+set_global_assignment -name VERILOG_FILE modules/jt6295/hdl/jt6295_acc.v
+set_global_assignment -name VERILOG_FILE modules/jt6295/hdl/jt6295_ctrl.v
+set_global_assignment -name VERILOG_FILE modules/jt6295/hdl/jt6295_rom.v
+set_global_assignment -name VERILOG_FILE modules/jt6295/hdl/jt6295_serial.v
+set_global_assignment -name VERILOG_FILE modules/jt6295/hdl/jt6295_sh_rst.v
+set_global_assignment -name SEARCH_PATH modules/jt6295/hdl
+# jt51 (YM2151, GPL-3.0; the Daitoride / Pururun / Gun Master / Puzzli boards), vendored in modules/jt51 unchanged
+set_global_assignment -name VERILOG_FILE modules/jt51/hdl/jt51_acc.v
+set_global_assignment -name VERILOG_FILE modules/jt51/hdl/jt51_eg.v
+set_global_assignment -name VERILOG_FILE modules/jt51/hdl/jt51_exp2lin.v
+set_global_assignment -name VERILOG_FILE modules/jt51/hdl/jt51_exprom.v
+set_global_assignment -name VERILOG_FILE modules/jt51/hdl/jt51_kon.v
+set_global_assignment -name VERILOG_FILE modules/jt51/hdl/jt51_lfo.v
+set_global_assignment -name VERILOG_FILE modules/jt51/hdl/jt51_lin2exp.v
+set_global_assignment -name VERILOG_FILE modules/jt51/hdl/jt51_mmr.v
+set_global_assignment -name VERILOG_FILE modules/jt51/hdl/jt51_mod.v
+set_global_assignment -name VERILOG_FILE modules/jt51/hdl/jt51_noise_lfsr.v
+set_global_assignment -name VERILOG_FILE modules/jt51/hdl/jt51_noise.v
+set_global_assignment -name VERILOG_FILE modules/jt51/hdl/jt51_op.v
+set_global_assignment -name VERILOG_FILE modules/jt51/hdl/jt51_pg.v
+set_global_assignment -name VERILOG_FILE modules/jt51/hdl/jt51_phinc_rom.v
+set_global_assignment -name VERILOG_FILE modules/jt51/hdl/jt51_phrom.v
+set_global_assignment -name VERILOG_FILE modules/jt51/hdl/jt51_pm.v
+set_global_assignment -name VERILOG_FILE modules/jt51/hdl/jt51_reg.v
+set_global_assignment -name VERILOG_FILE modules/jt51/hdl/jt51_sh.v
+set_global_assignment -name VERILOG_FILE modules/jt51/hdl/jt51_timers.v
+set_global_assignment -name VERILOG_FILE modules/jt51/hdl/jt51_reg_ch.v
+set_global_assignment -name VERILOG_FILE modules/jt51/hdl/jt51_csr_op.v
+set_global_assignment -name VERILOG_FILE modules/jt51/hdl/jt51.v
+
+# family F (Blazing Tornado, Grand Striker 2): the 053936 plane, the Z80 + YM2610 board; jt10 (jotego/jt12, GPL-3.0), jt49 and tv80 as vendored by the user's mcatadv core (modules/VENDOR.md)
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_sndf.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_ympcm.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/metro_hud.sv
+set_global_assignment -name QIP_FILE modules/jt10/jt10.qip
+set_global_assignment -name VERILOG_FILE modules/jt49/jt49.v
+set_global_assignment -name VERILOG_FILE modules/jt49/jt49_cen.v
+set_global_assignment -name VERILOG_FILE modules/jt49/jt49_div.v
+set_global_assignment -name VERILOG_FILE modules/jt49/jt49_eg.v
+set_global_assignment -name VERILOG_FILE modules/jt49/jt49_exp.v
+set_global_assignment -name VERILOG_FILE modules/jt49/jt49_noise.v
+set_global_assignment -name VERILOG_FILE modules/cpu-tv80/tv80_alu.v
+set_global_assignment -name VERILOG_FILE modules/cpu-tv80/tv80_core.v
+set_global_assignment -name VERILOG_FILE modules/cpu-tv80/tv80_mcode.v
+set_global_assignment -name VERILOG_FILE modules/cpu-tv80/tv80_reg.v
+set_global_assignment -name VERILOG_FILE modules/cpu-tv80/tv80s.v
+set_global_assignment -name VERILOG_FILE modules/cpu-tv80/tv80s_cen.v

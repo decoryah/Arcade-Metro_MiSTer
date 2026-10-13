@@ -1,0 +1,19 @@
+translated: 975 handlers, not translated: 8
+PRE_48                 primary ('op', '>')
+PRE_4C                 primary ('op', '>')
+PRE_4D                 primary ('op', '>')
+PRE_60                 primary ('op', '>')
+PRE_64                 primary ('op', '>')
+PRE_70                 primary ('op', '>')
+PRE_74                 primary ('op', '>')
+STOP                   identifier m_icount
+
+not translated and used by the 78C10 tables (opcode -> illegal):
+  PRE_48  s_opXX_7810:48
+  PRE_4C  s_opXX_7810:4C
+  PRE_4D  s_opXX_7810:4D
+  PRE_60  s_opXX_7810:60
+  PRE_64  s_opXX_7810:64
+  PRE_70  s_opXX_7810:70
+  PRE_74  s_opXX_7810:74
+  STOP  s_op48:BB

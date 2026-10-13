@@ -1,0 +1,74 @@
+<misterromdescription>
+    <rotation>horizontal</rotation>
+    <name>Toride II Bok Su Oi Jeon Adauchi Gaiden (Korea)</name>
+    <setname>toride2gk</setname>
+    <mameversion>0289</mameversion>
+    <year>1994</year>
+    <manufacturer>Metro</manufacturer>
+    <players>2</players>
+    <joystick>8</joystick>
+    <rbf>metro</rbf>
+    <platform>Metro</platform>
+
+    <!--
+      Flat image for the Metro core (uPD7810 families), the same layout for every set (tools/metro_rom.py):
+        0x000000  0x000020  configuration: [0] board [1] rotation [2] GFX scramble (0 none, 1 init_dharmak, 2 init_balcube) [3:6] GFX size
+        0x010000  0x080000  maincpu
+        0x090000  0x020000  audiocpu
+        0x0B0000  0x040000  oki
+        0x100000  0x400000  gfx (the set's vdp / vdp2 region)
+
+      Expects the MAME 0.289 merged romset or the split sets: parts are found by name and CRC.
+      The ROMs are stored as dumped; the core applies the driver's GFX descramble (configuration byte 2).
+      DIP switches (ioctl index 254): byte 0 is MAME's DSW0 bits 0-7, byte 1 bits 8-15; the boards with a second port (DSW1) have it in bytes 2 and 3; a 1 is MAME's default setting.
+    -->
+    <switches default="FF,F7" base="16">
+        <dip bits="0,1,2" name="Coin A" ids="Free Play,4 Coins/1 Credit,3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,1 Coin/1 Credit"/>
+        <dip bits="3,4,5" name="Coin B" ids="Free Play,4 Coins/1 Credit,3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,1 Coin/1 Credit"/>
+        <dip bits="6" name="Flip Screen" ids="On,Off"/>
+        <dip bits="7" name="Service Mode" ids="On,Off"/>
+        <dip bits="8,9" name="Timer Speed" ids="Fastest,Fast,Slower,Normal"/>
+        <dip bits="10" name="Tile Arrangement" ids="Hard,Normal"/>
+        <dip bits="11" name="Retry Level On Continue" ids="Ask Player,Yes"/>
+        <dip bits="12" name="2 Players Game" ids="1 Credit,2 Credits"/>
+        <dip bits="13" name="Allow Continue" ids="No,Yes"/>
+        <dip bits="14" name="Demo Sounds" ids="Off,On"/>
+        <dip bits="15" name="Unused" ids="On,Off"/>
+    </switches>
+
+    <buttons names="Button 1,Button 2,Start,Coin,Button 3" default="A,B,Start,Select,X"/>
+
+    <rom index="0" zip="toride2gk.zip|toride2g.zip" md5="None">
+
+        <!-- configuration -->
+        <part>02 00 00 00 00 20 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00</part>
+
+        <!-- unused -->
+        <part repeat="0xFFE0">00</part>
+
+        <!-- maincpu -->
+        <interleave output="16">
+            <part name="5" crc="7e3f943a" map="01"/>
+            <part name="6" crc="92726910" map="10"/>
+        </interleave>
+
+        <!-- audiocpu -->
+        <part name="8" crc="fdd29146"/>
+
+        <!-- oki -->
+        <part name="7" crc="630c6193"/>
+        <part repeat="0x20000">00</part>
+
+        <!-- unused -->
+        <part repeat="0x10000">00</part>
+
+        <!-- gfx -->
+        <interleave output="64">
+            <part name="2" crc="5e7fb9db" map="00000021"/>
+            <part name="4" crc="558c03e7" map="00002100"/>
+            <part name="1" crc="5e819ccd" map="00210000"/>
+            <part name="3" crc="24029583" map="21000000"/>
+        </interleave>
+        <part repeat="0x200000">00</part>
+    </rom>
+</misterromdescription>

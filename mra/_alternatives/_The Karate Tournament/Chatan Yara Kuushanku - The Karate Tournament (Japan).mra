@@ -1,0 +1,71 @@
+<misterromdescription>
+    <rotation>horizontal</rotation>
+    <name>Chatan Yara Kuushanku - The Karate Tournament (Japan)</name>
+    <setname>karatourj</setname>
+    <mameversion>0289</mameversion>
+    <year>1992</year>
+    <manufacturer>Mitchell</manufacturer>
+    <players>2</players>
+    <joystick>8</joystick>
+    <rbf>metro</rbf>
+    <platform>Metro</platform>
+
+    <!--
+      Flat image for the Metro core (uPD7810 families), the same layout for every set (tools/metro_rom.py):
+        0x000000  0x000020  configuration: [0] board [1] rotation [2] GFX scramble (0 none, 1 init_dharmak, 2 init_balcube) [3:6] GFX size
+        0x010000  0x080000  maincpu
+        0x090000  0x020000  audiocpu
+        0x0B0000  0x040000  oki
+        0x100000  0x400000  gfx (the set's vdp / vdp2 region)
+
+      Expects the MAME 0.289 merged romset or the split sets: parts are found by name and CRC.
+      The ROMs are stored as dumped; the core applies the driver's GFX descramble (configuration byte 2).
+      DIP switches (ioctl index 254): byte 0 is MAME's DSW0 bits 0-7, byte 1 bits 8-15; the boards with a second port (DSW1) have it in bytes 2 and 3; a 1 is MAME's default setting.
+    -->
+    <switches default="7F,00,FF,00" base="16">
+        <dip bits="0,1" name="Lives" ids="2,1,4,3"/>
+        <dip bits="2,3" name="Difficulty" ids="Hardest,Hard,Easy,Normal"/>
+        <dip bits="4" name="Time" ids="40,60"/>
+        <dip bits="5" name="Free Play" ids="On,Off"/>
+        <dip bits="6" name="Allow Continue" ids="No,Yes"/>
+        <dip bits="7" name="Demo Sounds" ids="On,Off"/>
+        <dip bits="16,17,18" name="Coin A" ids="3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/6 Credits,1 Coin/5 Credits,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,1 Coin/1 Credit"/>
+        <dip bits="19,20,21" name="Coin B" ids="3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/6 Credits,1 Coin/5 Credits,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,1 Coin/1 Credit"/>
+        <dip bits="22" name="Flip Screen" ids="On,Off"/>
+        <dip bits="23" name="Service Mode" ids="On,Off"/>
+    </switches>
+
+    <buttons names="Button 1,Button 2,Start,Coin,Button 3" default="A,B,Start,Select,X"/>
+
+    <rom index="0" zip="karatourj.zip|karatour.zip" md5="None">
+
+        <!-- configuration -->
+        <part>07 00 00 00 00 40 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00</part>
+
+        <!-- unused -->
+        <part repeat="0xFFE0">00</part>
+
+        <!-- maincpu -->
+        <interleave output="16">
+            <part name="kt002.8g" crc="316a97ec" map="01"/>
+            <part name="kt003.10g" crc="abe1b991" map="10"/>
+        </interleave>
+
+        <!-- audiocpu -->
+        <part name="kt001.1i" crc="1dd2008c"/>
+
+        <!-- oki -->
+        <part name="kt008.1d" crc="47cf9fa1"/>
+
+        <!-- unused -->
+        <part repeat="0x10000">00</part>
+
+        <!-- gfx -->
+        <interleave output="64">
+            <part name="361a04.15f" crc="f6bf20a5" map="00000021"/>
+            <part name="361a07.17d" crc="794cc1c0" map="00002100"/>
+            <part name="361a05.17f" crc="ea9c11fc" map="00210000"/>
+            <part name="361a06.15d" crc="7e15f058" map="21000000"/>
+        </interleave>
+    </rom>
+</misterromdescription>

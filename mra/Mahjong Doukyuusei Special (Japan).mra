@@ -1,0 +1,65 @@
+<misterromdescription>
+    <rotation>horizontal</rotation>
+    <name>Mahjong Doukyuusei Special (Japan)</name>
+    <setname>dokyusp</setname>
+    <mameversion>0289</mameversion>
+    <year>1995</year>
+    <manufacturer>Make Software / Elf / Media Trading</manufacturer>
+    <players>2</players>
+    <joystick>8</joystick>
+    <rbf>metro</rbf>
+    <platform>Metro</platform>
+
+    <!--
+      Flat image for the Metro core (uPD7810 families), the same layout for every set (tools/metro_rom.py):
+        0x000000  0x000020  configuration: [0] board [1] rotation [2] GFX scramble (0 none, 1 init_dharmak, 2 init_balcube) [3:6] GFX size
+        0x000100  0x000080  eeprom
+        0x010000  0x080000  maincpu
+        0x100000  0x1000000  gfx (the set's vdp / vdp2 region)
+        0x1100000  0x200000  oki
+
+      Expects the MAME 0.289 merged romset or the split sets: parts are found by name and CRC.
+      The ROMs are stored as dumped; the core applies the driver's GFX descramble (configuration byte 2).
+      DIP switches (ioctl index 254): byte 0 is MAME's DSW0 bits 0-7, byte 1 bits 8-15; the boards with a second port (DSW1) have it in bytes 2 and 3; a 1 is MAME's default setting.
+    -->
+    <switches default="00,00" base="16">
+    </switches>
+
+    <buttons names="Button 1,Button 2,Start,Coin,Button 3" default="A,B,Start,Select,X"/>
+
+    <rom index="0" zip="dokyusp.zip" md5="None">
+
+        <!-- configuration -->
+        <part>10 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00</part>
+
+        <!-- unused -->
+        <part repeat="0xE0">00</part>
+
+        <!-- eeprom -->
+        <part name="eeprom-dokyusp.bin" crc="cf159485"/>
+
+        <!-- unused -->
+        <part repeat="0xFE80">00</part>
+
+        <!-- maincpu -->
+        <interleave output="16">
+            <part name="6.bin" crc="01729b7f" map="01"/>
+            <part name="5.bin" crc="57770776" map="10"/>
+        </interleave>
+        <part repeat="0x40000">00</part>
+
+        <!-- unused -->
+        <part repeat="0x70000">00</part>
+
+        <!-- gfx -->
+        <interleave output="64">
+            <part name="2l.bin" crc="4bed184d" map="00000021"/>
+            <part name="4l.bin" crc="2ee468e6" map="00002100"/>
+            <part name="1l.bin" crc="510ace14" map="00210000"/>
+            <part name="3l.bin" crc="82ea562e" map="21000000"/>
+        </interleave>
+
+        <!-- oki -->
+        <part name="7.bin" crc="763985e1"/>
+    </rom>
+</misterromdescription>

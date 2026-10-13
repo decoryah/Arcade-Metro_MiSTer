@@ -1,0 +1,74 @@
+<misterromdescription>
+    <rotation>horizontal</rotation>
+    <name>Last Fortress - Toride (Japan, VG460 PCB)</name>
+    <setname>lastfortj</setname>
+    <mameversion>0289</mameversion>
+    <year>1994</year>
+    <manufacturer>Metro</manufacturer>
+    <players>2</players>
+    <joystick>8</joystick>
+    <rbf>metro</rbf>
+    <platform>Metro</platform>
+
+    <!--
+      Flat image for the Metro core (uPD7810 families), the same layout for every set (tools/metro_rom.py):
+        0x000000  0x000020  configuration: [0] board [1] rotation [2] GFX scramble (0 none, 1 init_dharmak, 2 init_balcube) [3:6] GFX size
+        0x010000  0x080000  maincpu
+        0x090000  0x020000  audiocpu
+        0x0B0000  0x040000  oki
+        0x100000  0x400000  gfx (the set's vdp / vdp2 region)
+
+      Expects the MAME 0.289 merged romset or the split sets: parts are found by name and CRC.
+      The ROMs are stored as dumped; the core applies the driver's GFX descramble (configuration byte 2).
+      DIP switches (ioctl index 254): byte 0 is MAME's DSW0 bits 0-7, byte 1 bits 8-15; the boards with a second port (DSW1) have it in bytes 2 and 3; a 1 is MAME's default setting.
+    -->
+    <switches default="6F,00,FF,00" base="16">
+        <dip bits="0,1" name="Lives" ids="2,1,4,3"/>
+        <dip bits="2,3" name="Difficulty" ids="Very Hard,Hard,Easy,Normal"/>
+        <dip bits="4" name="Nudity" ids="Full,Partial"/>
+        <dip bits="5" name="Service Mode / Free Play" ids="On,Off"/>
+        <dip bits="6" name="Allow Continue" ids="No,Yes"/>
+        <dip bits="7" name="Demo Sounds" ids="On,Off"/>
+        <dip bits="16,17,18" name="Coin A" ids="3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/6 Credits,1 Coin/5 Credits,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,1 Coin/1 Credit"/>
+        <dip bits="19,20,21" name="Coin B" ids="3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/6 Credits,1 Coin/5 Credits,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,1 Coin/1 Credit"/>
+        <dip bits="22" name="Flip Screen" ids="On,Off"/>
+        <dip bits="23" name="Unused" ids="On,Off"/>
+    </switches>
+
+    <buttons names="Button 1,Button 2,Start,Coin,Button 3" default="A,B,Start,Select,X"/>
+
+    <rom index="0" zip="lastfortj.zip|lastfort.zip" md5="None">
+
+        <!-- configuration -->
+        <part>0B 00 00 00 00 20 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00</part>
+
+        <!-- unused -->
+        <part repeat="0xFFE0">00</part>
+
+        <!-- maincpu -->
+        <interleave output="16">
+            <part name="tr_mja2.8g" crc="4059a8c8" map="01"/>
+            <part name="tr_mja3.10g" crc="8fc6ddcd" map="10"/>
+        </interleave>
+        <part repeat="0x40000">00</part>
+
+        <!-- audiocpu -->
+        <part name="tr_ma01.1i" crc="8a8f5fef"/>
+
+        <!-- oki -->
+        <part name="tr_ma08.1d" crc="83786a09"/>
+        <part repeat="0x20000">00</part>
+
+        <!-- unused -->
+        <part repeat="0x10000">00</part>
+
+        <!-- gfx -->
+        <interleave output="64">
+            <part name="tr_ma04.15f" crc="5feafc6f" map="00000021"/>
+            <part name="tr_ma07.17d" crc="7519d569" map="00002100"/>
+            <part name="tr_ma05.17f" crc="5d917ba5" map="00210000"/>
+            <part name="tr_ma06.15d" crc="d366c04e" map="21000000"/>
+        </interleave>
+        <part repeat="0x200000">00</part>
+    </rom>
+</misterromdescription>

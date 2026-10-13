@@ -1,0 +1,71 @@
+<misterromdescription>
+    <rotation>horizontal</rotation>
+    <name>Mahjong Doukyuusei (Japan)</name>
+    <setname>dokyusei</setname>
+    <mameversion>0289</mameversion>
+    <year>1995</year>
+    <manufacturer>Make Software / Elf / Media Trading</manufacturer>
+    <players>2</players>
+    <joystick>8</joystick>
+    <rbf>metro</rbf>
+    <platform>Metro</platform>
+
+    <!--
+      Flat image for the Metro core (uPD7810 families), the same layout for every set (tools/metro_rom.py):
+        0x000000  0x000020  configuration: [0] board [1] rotation [2] GFX scramble (0 none, 1 init_dharmak, 2 init_balcube) [3:6] GFX size
+        0x010000  0x080000  maincpu
+        0x100000  0x800000  gfx (the set's vdp / vdp2 region)
+        0x900000  0x100000  oki
+
+      Expects the MAME 0.289 merged romset or the split sets: parts are found by name and CRC.
+      The ROMs are stored as dumped; the core applies the driver's GFX descramble (configuration byte 2).
+      DIP switches (ioctl index 254): byte 0 is MAME's DSW0 bits 0-7, byte 1 bits 8-15; the boards with a second port (DSW1) have it in bytes 2 and 3; a 1 is MAME's default setting.
+    -->
+    <switches default="00,FF,00,EF" base="16">
+        <dip bits="8,9" name="Difficulty" ids="Hardest,Hard,Normal,Easy"/>
+        <dip bits="10,11,12" name="Coinage" ids="Free Play,4 Coins/1 Credit,3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,1 Coin/1 Credit"/>
+        <dip bits="13" name="Demo Sounds" ids="Off,On"/>
+        <dip bits="14" name="Game Sound" ids="Off,On"/>
+        <dip bits="15" name="Auto TSUMO after REACH" ids="Yes,No"/>
+        <dip bits="24" name="Flip Screen" ids="On,Off"/>
+        <dip bits="25" name="CPU wears clothes on RON" ids="No,Yes"/>
+        <dip bits="26" name="CPU clothes on continue play" ids="Keep current status,Return to default"/>
+        <dip bits="27" name="Service Mode" ids="On,Off"/>
+        <dip bits="28" name="Self Test" ids="No,Yes"/>
+        <dip bits="29" name="Unknown 2-6" ids="On,Off"/>
+        <dip bits="30" name="Unknown 2-7" ids="On,Off"/>
+        <dip bits="31" name="Unknown 2-8" ids="On,Off"/>
+    </switches>
+
+    <buttons names="Button 1,Button 2,Start,Coin,Button 3" default="A,B,Start,Select,X"/>
+
+    <rom index="0" zip="dokyusei.zip" md5="None">
+
+        <!-- configuration -->
+        <part>0E 00 00 00 00 80 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00</part>
+
+        <!-- unused -->
+        <part repeat="0xFFE0">00</part>
+
+        <!-- maincpu -->
+        <interleave output="16">
+            <part name="330_a06.bin" crc="36157c2e" map="01"/>
+            <part name="330_a05.bin" crc="177f50d2" map="10"/>
+        </interleave>
+        <part repeat="0x40000">00</part>
+
+        <!-- unused -->
+        <part repeat="0x70000">00</part>
+
+        <!-- gfx -->
+        <interleave output="64">
+            <part name="2.bin" crc="075bface" map="00000021"/>
+            <part name="4.bin" crc="bc631438" map="00002100"/>
+            <part name="1.bin" crc="4566c29b" map="00210000"/>
+            <part name="3.bin" crc="5f6d7969" map="21000000"/>
+        </interleave>
+
+        <!-- oki -->
+        <part name="7.bin" crc="c572aee1"/>
+    </rom>
+</misterromdescription>
