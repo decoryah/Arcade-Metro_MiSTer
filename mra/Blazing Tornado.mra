@@ -49,7 +49,7 @@
 
     <buttons names="Button 1,Button 2,Start,Coin,Button 3,Button 4" default="A,B,Start,Select,X,Y"/>
 
-    <rom index="0" zip="blzntrnd.zip" md5="None">
+    <rom index="0" zip="blzntrnd.zip" md5="None" address="0x32000000">
 
         <!-- configuration -->
         <part>12 00 00 00 00 80 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00</part>

@@ -6,8 +6,8 @@
 
 Metro.qsf holds every setting; its VARIANT-BEGIN / VARIANT-END block is the variant's own macros.  The revisions repeat the file with their own block and fitter seed:
 
-  metro      Metro.qsf       D_BUILD NO_YMF                      32 MB SDRAM module: every game except family F
-  metrod64   Metro_D64.qsf   D_BUILD F64                         64 MB module: + family C (YMF278B) and Mahjong Gakuensai
+  metro      Metro.qsf       D_BUILD D_VLOG NO_YMF               32 MB SDRAM module: every game except family F
+  metrod64   Metro_D64.qsf   D_BUILD D_VLOG F64                  64 MB module: + family C (YMF278B) and Mahjong Gakuensai
   metrof64   Metro_F64.qsf   F_BUILD F64 F_VLOG NO_YMF           64 MB module: Blazing Tornado, Grand Striker 2
 
 Build one:  quartus_sh --flow compile Metro -c Metro_D64        (output_files/Metro_D64.rbf; the id shown in the OSD is build_id.v)
@@ -22,7 +22,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 
 VARIANTS = {
-    'D64': ['D_BUILD', 'F64'],
+    'D64': ['D_BUILD', 'D_VLOG', 'F64'],
     'F64': ['F_BUILD', 'F64', 'F_VLOG', 'NO_YMF'],
 }
 COMMENT = {

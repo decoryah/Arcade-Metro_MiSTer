@@ -288,10 +288,15 @@ module metro_main #(
     logic [15:0] vdp_rdata;
 `ifdef F_VLOG
     localparam bit P_VLOG_ON = 1'b1;                  // family F: the layer RAM changes at the copy instant, not while the beam is drawing (metro_vdp.sv P_VLOG)
+    localparam int P_LG_AW_ON = 12;                   // 4,096 slots (Blazing Tornado's continue screen: 3,980 words)
+`elsif D_VLOG
+    localparam bit P_VLOG_ON = 1'b1;                  // the I4300 boards (Mahjong Doukyuusei / Gakuensai ...): the same log, active only on those boards (the I4100 / I4220 boards stay live)
+    localparam int P_LG_AW_ON = 11;                   // 2,048 slots (the biggest frame of the boards' replays: 1,313 slots; a frame that does not fit is drawn live as before)
 `else
     localparam bit P_VLOG_ON = 1'b0;
+    localparam int P_LG_AW_ON = 12;
 `endif
-    metro_vdp #(.GFX_AW(GFX_AW), .P_PIXDIV(P_PIXDIV), .P_SPR_BUFFERED(1'b0), .P_VLOG(P_VLOG_ON),
+    metro_vdp #(.GFX_AW(GFX_AW), .P_PIXDIV(P_PIXDIV), .P_SPR_BUFFERED(1'b0), .P_VLOG(P_VLOG_ON), .P_LG_AW(P_LG_AW_ON),
                 .P_H_TOTAL(P_H_TOTAL), .P_VLAST(P_VLAST), .P_HS_BEG(P_HS_BEG), .P_HS_END(P_HS_END),
                 .P_VS_BEG(P_VS_BEG), .P_VS_END(P_VS_END),
                 .P_IRQ_MODEL(1), .P_VBL_LINE(224), .P_TICK_LINES(32), .P_TICK_CLKS(200000)) u_vdp (
@@ -815,6 +820,23 @@ module metro_main #(
         end
     end
 
+    // The read data's selects, registered.  The mux that loads iEdb at cnt == 3 was the 68000 bus's longest path (aob -> address compare -> sel_io -> eleven levels ->
+    // iEdb, a single-cycle path to STA although the address is stable for the whole bus cycle: the margin moved with every seed, -0.6 .. +0.3 ns).  The address is
+    // valid from AS on, so the registered decodes are settled three clocks before they are used.
+    logic r_sel_ram, r_f_io, r_sel_io, r_d_io_sel, r_vm_io, r_dsw, r_c_in, r_c_ymf, r_ee, r_d_oki_sel;
+    always_ff @(posedge clk) begin
+        r_sel_ram   <= sel_ram;
+        r_f_io      <= f_io;
+        r_sel_io    <= sel_io;
+        r_d_io_sel  <= d_io_sel;
+        r_vm_io     <= vm_io;
+        r_dsw       <= vm_dsw || c_dsw;
+        r_c_in      <= c_in;
+        r_c_ymf     <= c_ymf;
+        r_ee        <= d_ee_dat || d_gk_ee;
+        r_d_oki_sel <= d_oki_sel;
+    end
+
     always_ff @(posedge clk) begin
         we         <= 1'b0;
         ee_clk     <= 1'b0;
@@ -922,9 +944,9 @@ module metro_main #(
                 if (cnt == 3'd0 && d_ee_dat) ee_clk <= 1'b1;
                 if (cnt == 3'd3) begin
                     if (c_ymf) o_ymf_rd <= 1'b1;                                   // the status has been taken: the chip's read strobe (the first status read returns the chip ID)
-                    iEdb <= sel_ram ? q_ram : f_io ? f_io_mux : sel_io ? io_mux : d_io_sel ? d_io_mux : vm_io ? vm_io_mux : (vm_dsw || c_dsw) ? vm_dsw_val : c_in ? c_in_mux : c_ymf ? {8'h00, i_ymf_status} : (d_ee_dat || d_gk_ee) ? {15'd0, ee_do} : d_oki_sel ? {8'h00, d_oki_status} : 16'h0000;
+                    iEdb <= r_sel_ram ? q_ram : r_f_io ? f_io_mux : r_sel_io ? io_mux : r_d_io_sel ? d_io_mux : r_vm_io ? vm_io_mux : r_dsw ? vm_dsw_val : r_c_in ? c_in_mux : r_c_ymf ? {8'h00, i_ymf_status} : r_ee ? {15'd0, ee_do} : r_d_oki_sel ? {8'h00, d_oki_status} : 16'h0000;
                     rdy  <= 1'b1;
-                    trc_stb <= 1'b1; trc_addr <= eab; trc_rw <= 1'b1; trc_data <= sel_ram ? q_ram : f_io ? f_io_mux : sel_io ? io_mux : d_io_sel ? d_io_mux : vm_io ? vm_io_mux : (vm_dsw || c_dsw) ? vm_dsw_val : c_in ? c_in_mux : c_ymf ? {8'h00, i_ymf_status} : (d_ee_dat || d_gk_ee) ? {15'd0, ee_do} : d_oki_sel ? {8'h00, d_oki_status} : 16'h0000; trc_be <= be;
+                    trc_stb <= 1'b1; trc_addr <= eab; trc_rw <= 1'b1; trc_data <= r_sel_ram ? q_ram : r_f_io ? f_io_mux : r_sel_io ? io_mux : r_d_io_sel ? d_io_mux : r_vm_io ? vm_io_mux : r_dsw ? vm_dsw_val : r_c_in ? c_in_mux : r_c_ymf ? {8'h00, i_ymf_status} : r_ee ? {15'd0, ee_do} : r_d_oki_sel ? {8'h00, d_oki_status} : 16'h0000; trc_be <= be;
                 end
             end
         end

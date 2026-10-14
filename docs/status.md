@@ -1156,13 +1156,139 @@ above).  The whole-machine write log of the title (`work/gk/wl_msgogo_wl.txt`) i
 
 **Tools.**  `tools/lua/vdpwr.lua` (every 68000 write to the video chip with its time) and `tools/mkreplay.py` (events for the bench) are the replay recipe's two halves.
 
+## Release 20261014b: frame-synchronous I4300 boards (2026-10-14; `metro` and `metrod64` only; confirmed on the boards with 20261014d)
+
+**Why.**  Two videos of 2026-10-14 (`IMG_8100` Mahjong Doukyuusei: flashing on the intro; `IMG_8099` Mahjong Gakuensai: flashing on the left of the tutorial's speech bubbles).
+
+**Gakuensai's speech bubbles.**  The tutorial's bubbles are sprites, and the game rewrites the whole sprite list from line ~250 of one frame to line ~46 of the next, while MAME draws
+the frame at line 240 with the finished list.  The core copied the list at `crtc_vfirst` of the next frame, in the middle of that rewrite: holes in the bubbles, the HUD icons missing
+for a frame.  Replay of MAME frames 6700 - 6900: 20 of 200 pictures off; of the play segment 11700 - 11900: 11 of 200; with the copy at `v_vis`: 0 and 0.
+
+**Doukyuusei's intro** (MAME frames 385 -> 386 and 567 -> 568, `work/gkrp` replay `dk300`).  In the frame of the change the game writes 6,144 same-value words of tile layer 2
+(`0x800f`), the 1,024 words of the tile table, two blits, 423 sprite words and, in the vblank, the sprite colour offset (0x79708) and the background pen (0x79712): no palette
+writes.  Replays with parts of that frame removed (`work/gkrp/ev_noT/noB/noS/noTB.txt`, `evsum.py`) showed two separate causes:
+
+* the live fill blanks one whole picture (the black flash of the video: the renderer reads the layer RAM line by line while the 68000 fills it);
+* the renderer's sprite colour offset, background pen, layer priority, sprite offsets and screen offsets were read live, so a vblank-handler write reached the picture a frame
+  before MAME shows it (the figure turned into a black silhouette over the old background).
+
+**The change** (`rtl/metro_vdp.sv`, `i_i4300` boards only: Mouja, Doukyuusei, Doukyuusei Special, Gakuensai 1 / 2):
+
+* the family F frame-synchronous tile RAM (the log, `P_VLOG`) is built into the D builds too (`D_VLOG`, 2,048 slots, `P_LG_AW`; family F keeps 4,096) and active only on those
+  boards (`mode_c`).  The log's run encoding keeps the 7,168-word burst at 1,313 slots (`work/gkrp/slots.py`; the largest frame of every I4300 scene tried).  A frame that does not
+  fit is drawn live as before;
+* the log's cut is the line `v_vis` (MAME's render line); the apply waits until the renderer has been kicked for the last displayed line (`kicks_done`, `v_vis + crtc_vfirst`) and is
+  done.  Writes of the window between the two (11 lines on Mouja's / Doukyuusei Special's CRTC: "INSERT COIN" blinked a frame early with the cut at `v_vis + vfirst`) belong to the
+  next picture;
+* the sprite list is copied at `v_vis` for every I4300 board (before: `vlast` of the frame, or `crtc_vfirst` of the next one on the 240-line boards) and the registers above are
+  copied with it (`r_*_q`, `rg_snap`; not with the raster-IRQ mode `i_scan_irq`);
+* blits: a blit queue pop waits for the log up to the cut (`lg_pre_ok`) instead of forcing it out; `mode_c` stays on while the queue runs.
+
+The display of these boards is one frame later than in 20261014a (the picture is MAME's frame; the replay index is `D + n - 1`, as for family F).
+
+**Replays against MAME** (pictures that differ from MAME's frame; baselines: 20261013a sources for the first four rows, 20261014a for Gakuensai):
+
+```
+game / frames                    pictures   before                                   20261014b
+Doukyuusei    300 - 700             400      3 (the two changes, one 94 px)           0
+Doukyuusei   3000 - 3200            200      0                                        0
+Mouja        4000 - 4200            200      0                                        0
+Doukyuusei Special 4800 - 5000      200      82 (29,015 px)                           0
+Gakuensai    6700 - 6900 (tutorial) 200      20 (21,098 px)                           0
+Gakuensai   11700 - 11900 (play)    200      11 (1,749 px)                            0
+```
+
+Whole machine (committed tree against the new one, the real SDRAM path, picture / VDP memories byte for byte): Gakuensai and Mouse Shooter GoGo at frames 110 and 220 identical
+(boot screens: nothing hangs, the log does not disturb the boot).
+
+| Core file | Macros | Seed | Setup (96 MHz) | Hold | HDMI clock setup | ALMs | RAM blocks |
+|---|---|---|---|---|---|---|---|
+| `metro_20261014b` | `D_BUILD D_VLOG NO_YMF` | 4 | **+0.103 ns** | +0.243 ns | +0.650 ns | 31,240 (75 %) | 548 / 553 |
+| `metrod64_20261014b` | `D_BUILD D_VLOG F64` | 4 | **+0.096 ns** | +0.158 ns | +0.394 ns | 32,363 (77 %) | 549 / 553 |
+
+(`metrod64` with seed 3 missed by 0.108 ns.)  Build id `261014b`.  `metrof64_20261013a` stays current.
+
+**Mouse Shooter GoGo** (I4220, not touched): the whole-machine write log of the title (`work/gk/wl_msgogo_wl.txt`, 880 frames) has the same cadence as MAME's (the sprite list every
+second frame, the blit group every fourth, 266 tile words per update in the scene before, the core's frame = MAME's + 22), and the whole-machine picture of core frame 880 equals
+MAME's frame 858 pixel for pixel (shift 11 lines).  A register snapshot (`rg_snap` for every board) changes none of the 280 replay pictures.  The "choppy title" may simply be the
+game's own 30 Hz sprite update; the flashing lines and the theatre flash are not explained.
+
+**Tools.**  `work/gkrp/run_reg2.sh <variant>` + `regcmp2.py` (replay of every I4300 scene with a prebuilt binary and the comparison table), `evsum.py` (a write burst by kind and
+line), `slots.py` (log slots a frame needs).
+
+## Releases 20261014c / 20261014d: fast loading, Scale, CRT Adjust under the scandoubler (2026-10-14; all three cores; 20261014d confirmed on the boards)
+
+Ported from the Metamorphic Force core (`C:\repos\metamrph-mister`, `docs/mister-memory.md`); CRT Adjust (rmonic79's module) was already in this core.
+
+* **Fast load** (`rtl/metro_fastload.sv`, `rtl/metro_ddr.sv`, `Metro.sv` `fast_dl`).  `address="0x32000000"` on the MRA's index-0 `<rom>` makes a recent Main_MiSTer copy the assembled
+  image into the DDR3 at once and end a download that has no data bytes and a start `ioctl_addr` = the image's length; the core stays in reset until `metro_fastload` has read it
+  back (256-byte bursts) and played it into `metro_loader` as the byte strobe / address / data the HPS port would have produced (held by `o_dl_busy`).  The loader, the
+  descramble, the EEPROM contents and the SDRAM write path are those of a streamed load.  An older Main_MiSTer ignores the attribute and streams as before.  The DDR3 port is
+  shared with `screen_rotate` (the framework's rotated frame buffer for the vertical games, which never looks at `DDRAM_BUSY`): `metro_ddr` queues its writes (64-deep MLAB FIFO)
+  and puts the fast load's reads between them (the Metamorphic Force core's `ddr_arb` without the Flip Screen channel).  `tools/make_mra.py` writes the attribute;
+  `tools/package.py <date> noaddr` leaves it out for a release whose cores do not have the fast load.  The first build had the 32 x 64-bit block buffer written inside the state
+  machine's reset branch: Quartus made 2,048 flip-flops of it (+1,000 ALMs, failed timing on the way); a plain registered-read MLAB is 4 MLABs.
+* **Scale** (`status[34:32]`, hidden while the picture is rotated through the framebuffer): the framework's `video_freak` integer scaling with the same mapping and Full Screen
+  rule as the Metamorphic Force core (the menu's order is the user's; video_freak's SCALE counts 0 Normal, 1 V, 2 narrower HV, 3 HV+, 4 HV).  For the rotated games
+  `video_freak` would measure the unrotated picture and size the framebuffer wrongly: Scale stays Normal for them.
+* **CRT Adjust** does nothing while `Scandoubler Fx` or the framework's forced scandoubler is on (`ca_on`).
+
+**Bench** (`sim/emu/run_emu.sh`, `sim/emu/tb_emu.cpp`: `Metro.sv`'s `emu` with `hps_io` and the PLL stubbed, the project's real file list from `files.qip`, `sim/sdram_model.sv`
+and an Avalon DDR3 model `sim/ddr_model.sv`; env FAST, STRIDE, SCALE, AR, HW / HH, FX, FSD, CRT, SDRDUMP):
+
+```
+Dharma Doujou image (5 MB), streamed / fast:    SDRAM chip contents byte for byte identical; 23.77 M clocks both (the SDRAM write path is the limit: 0.25 s at 96 MHz)
+Mahjong Gakuensai image (38.8 MB), streamed / fast:   identical; 175.9 M clocks (1.83 s)
+Dharma from the fast load, 130 frames:           "ROM OK / RAM OK" on screen, 20,480 DDR reads = 5 MB / 256 B, 0 protocol errors
+Lady Killer (vertical) from the fast load, 80 frames:  6.85 M rotate-buffer writes through the arbiter, 0 protocol errors, Scale 2 asked: ratio 3:4 (Normal)
+Scale 1..4 x Aspect Original / Full Screen, 1080p / 720p / 768p:   12 runs, the asked size equals the rule in all (e.g. 1080p Original: V 1194 x 896, HV 1280 x 896, narrower 960 x 896)
+CRT Adjust on with Scandoubler Fx 2 / forced scandoubler: 448 rows x 320 as without (CRT Adjust alone: 312 pixels wide with H-Size +5)
+```
+
+Whole machine, family F (Grand Striker 2, F64 + log, the real SDRAM path, the 20261013a-era tree against the 20261014c sources): the picture, the VDP memories, registers and sprite list at frames 420 and 600 are byte for byte identical (`work/gkrp/run_fregress.sh`; the shared video chip changes of 20261014b are gated on `i_i4300`).
+
+| Core file | Macros | Seed | Setup (96 MHz) | Hold | ALMs | RAM blocks |
+|---|---|---|---|---|---|---|
+| `metro_20261014c` | `D_BUILD D_VLOG NO_YMF` | 4 | **+0.072 ns** | +0.065 ns | 31,867 (76 %) | 548 / 553 |
+| `metrod64_20261014c` | `D_BUILD D_VLOG F64` | 2 | **+0.005 ns** | +0.106 ns | 32,930 (79 %) | 549 / 553 |
+| `metrof64_20261014c` | `F_BUILD F64 F_VLOG NO_YMF` | 3 | **+0.300 ns** | +0.106 ns | 30,119 (72 %) | 553 / 553 |
+
+Seeds tried: `metro` 4 (+0.072), 5 (-0.238); `metrod64` 1 (-0.458), 2 (+0.005), 4 (-0.254), 5 (-0.583), 6 (-0.006); `metrof64` 1 (setup +0.381 but hold -0.071 on the log
+memory's address register), 2 (+0.329 / +0.057), 3 (+0.300 / +0.106).  The worst paths of the failing seeds are the 68000's read-data mux (`aob` -> `Equal32` ->
+`sel_io` -> `iEdb`, 11 levels: the read at `cnt == 3` is a four-clock path that the SDC leaves single-cycle on purpose), unchanged by this release: it is placement noise of a
+design at 76 - 79 % of the ALMs.  Registering the selects of that mux (they are stable three clocks before the read) is the clean way to buy margin and is not done yet.
+
+**20261014d** is 20261014c with the 68000's read-data selects registered (`rtl/metro_main.sv`: `r_sel_ram` ... `r_ee`, one register stage on the decode of the address; the read
+mux at `cnt == 3` used the combinational decode: `aob` -> `Equal32` -> `sel_io` -> eleven levels -> `iEdb`, a path of four clocks the SDC leaves single-cycle).  Behaviour is
+the same (the address is stable from AS on); the margin moved by about +0.1 to +0.5 ns on the seeds tried:
+
+| Core file | Seed | Setup (96 MHz) | Hold | ALMs | RAM blocks | Seeds tried (setup) |
+|---|---|---|---|---|---|---|
+| `metro_20261014d` | 4 | **+0.148 ns** | +0.065 ns | 31,577 (75 %) | 548 / 553 | 4 +0.148, 5 +0.318 |
+| `metrod64_20261014d` | 2 | **+0.129 ns** | +0.156 ns | 32,915 (79 %) | 549 / 553 | 2 +0.129, 4 +0.014 |
+| `metrof64` | (3 of 20261014c: the file stays `metrof64_20261014c.rbf`) | +0.300 ns | +0.106 ns | 30,119 (72 %) | 553 / 553 | d seed 3: setup +0.183, hold -0.122 (the log memory's address register again) |
+
+`metrof64` seeds of 20261014d (1, 2, 4) are fitting: if one closes the file will be renamed.  The family D / C whole-machine regression of the registered selects
+(`work/gkrp/run_dreg.sh`: 16 games, `tree_head` against the working tree, frames 100 and 250, picture + VDP memories + registers + sprite list) was running at the time of
+writing: Dharma Doujou, Daitoride, Toride II and Pururun byte for byte identical (all 16 were, see below).
+
+**Hardware result (the user, 2026-10-14, `Metro_MiSTer_20261014d.zip`):** fast loading works; the video fixes (Mahjong Doukyuusei's intro, Gakuensai's speech bubbles) work; Scale,
+CRT Adjust under the scandoubler and the other items OK; every game of the three cores was started and works.  `metrof64` ran as `metrof64_20261014c.rbf` (the same logic without
+the registered read selects; +0.300 ns), which is what stays in the release.
+
+**Regressions run after the release** (`work/gkrp`): family D / C whole machine (`run_dreg.sh`, 16 games, the 20261013a-era tree against the working tree with `D_VLOG` and the
+registered selects, frames 100 and 250: picture, VDP memories, registers, sprite list): all 16 byte for byte identical.  Family F (`run_fregress.sh`, Grand Striker 2, frames 420
+and 600): identical.  `metrof64` seeds of the 20261014d sources: 1 setup -0.131 / hold -0.051, 2 +0.420 / +0.091, 4 +0.436 / +0.106, 3 +0.183 / hold -0.122; `Metro_F64.qsf` now
+carries seed 4 (the shipped `metrof64_20261014c.rbf` was fitted from the sources one register stage earlier, seed 3).
+
 ## Open points
 
 Toolchain: WSL Ubuntu has Verilator 5.053 (`$HOME/tools/oss-cad-suite`), g++ 9.4, GNU make 4.2.1. Run WSL commands from PowerShell, or from Git Bash with `MSYS_NO_PATHCONV=1`.
 
 * **Known issues on the board** (README "Known issues"): the plain Daitoride's torn scanlines on the rocks (the I4220 board of the `metro` core; the YMF278B version does not
   show them; the frame-synchronous tile RAM of family F was **not** ported: its cost in logic and timing margin, a frame more latency and the blitter's start held for the log
-  outweigh one game's few scanlines); Mahjong Doukyuusei's bright frame in some portrait scenes; The Karate Tournament's explosion rectangles (not re-checked since 20261010);
+  outweigh one game's few scanlines); Mahjong Doukyuusei's bright frame / intro flashes (fixed in 20261014b / d, confirmed on the board);
+  The Karate Tournament's explosion rectangles (not re-checked since 20261010);
   Mouse Shooter GoGo's small quirks (reported 2026-10-12; the VDP replays match MAME, cause not found).  Mahjong Gakuensai 1 / 2's glitches were the blitter's groups,
   fixed in 20261014a (confirmed on the board).
 * **Not done:** Mahjong Gakuensai's EEPROM is not saved; Bang Bang Ball / Battle Bubble run at 58.2 Hz (MAME 60 Hz: they use Puzzli's scanline interrupt model, the core's

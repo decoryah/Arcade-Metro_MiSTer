@@ -52,6 +52,7 @@ wire   [1:0] buttons;
 wire         forced_scandoubler;
 wire         direct_video;
 wire         rot_none;                                   // the game is not a vertical one: hides the Rotate screen option
+wire         no_rotate;                                  // the picture is not rotated through the framebuffer (Rotate screen Off, direct video or a horizontal game)
 wire         vid_wide;                                   // the game has a 360 / 384-pixel picture: re-timed for a CRT (rtl/metro_vout.sv)
 wire  [21:0] gamma_bus;
 
@@ -73,6 +74,7 @@ localparam CONF_STR = {
 	"Metro;;",
 	"-;",
 	"O[122:121],Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
+	"H4O[34:32],Scale,Normal,V-Integer,HV-Integer,Narrower HV-Integer,HV-Integer+;",
 	"O[5:3],Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
 	"O[7],Display window,Game's CRTC,MAME;",
 	"H1O[2],Rotate screen,On,Off;",
@@ -141,7 +143,7 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 
 	.buttons(buttons),
 	.status(status),
-	.status_menumask({12'd0, ~status[101], 1'b0, rot_none, direct_video}),
+	.status_menumask({11'd0, ~no_rotate, ~status[101], 1'b0, rot_none, direct_video}),
 	.forced_scandoubler(forced_scandoubler),
 	.direct_video(direct_video),
 	.gamma_bus(gamma_bus),
@@ -249,6 +251,30 @@ wire [15:0] f_in2  = {10'h3FF, ~start2, ~start1, ~coin2, ~coin1, 1'b1, ~key_serv
 // the ROM image: MRA index 0
 wire        rom_dl = ioctl_download && (ioctl_index[7:0] == 8'd0);
 
+// Fast load: with address= on the MRA's index-0 <rom>, Main_MiSTer copies the whole assembled image into the DDR3 (byte 0x32000000) in one go and then ends a download that
+// has no data bytes, only a start address: the image's length (ioctl_addr, which is 0 at the start of an ordinary download).  The machine stays in reset from that start
+// until rtl/metro_fastload.sv has read the image back and played it into the loader as the HPS port would have streamed it.  An older Main_MiSTer ignores the attribute and
+// streams the bytes as before; nothing here touches that path.
+reg         rom_dl_d;
+always @(posedge clk_sys) rom_dl_d <= rom_dl;
+wire        dl_start = rom_dl && !rom_dl_d;
+wire        dl_done  = !rom_dl && rom_dl_d;
+reg         fast_dl = 1'b0;
+reg  [26:0] fast_len;
+wire        fl_go    = fast_dl && dl_done;
+wire        fl_done, fl_busy_unused;
+always @(posedge clk_sys) begin
+	if (dl_start) begin fast_dl <= (ioctl_addr != 27'd0); fast_len <= ioctl_addr; end
+	else if (fl_done || !pll_locked) fast_dl <= 1'b0;
+end
+wire        fl_wr;
+wire [25:0] fl_addr;
+wire  [7:0] fl_data;
+wire        fl_ddr_rd, fl_ddr_busy, fl_ddr_dready;
+wire [24:0] fl_ddr_addr;
+wire  [7:0] fl_ddr_burst;
+wire [63:0] fl_ddr_dout;
+
 wire        o_wr_ld;
 wire [25:0] o_addr_ld;
 wire  [7:0] o_data_ld;
@@ -264,10 +290,17 @@ wire [31:0] cfg_gfxsize;
 metro_loader u_loader
 (
 	.clk(clk_sys),
-	.dl_wr(ioctl_wr && rom_dl), .dl_addr(ioctl_addr[25:0]), .dl_data(ioctl_dout),
+	.dl_wr(fl_wr || (ioctl_wr && rom_dl)), .dl_addr(fl_wr ? fl_addr : ioctl_addr[25:0]), .dl_data(fl_wr ? fl_data : ioctl_dout),
 	.o_wr(o_wr_ld), .o_addr(o_addr_ld), .o_data(o_data_ld),
 	.cfg_board(cfg_board), .cfg_rot(cfg_rot), .cfg_scramble(cfg_scramble), .cfg_gfxsize(cfg_gfxsize),
 	.ee_wr(ee_ld_wr), .ee_addr(ee_ld_addr), .ee_data(ee_ld_data)
+);
+
+metro_fastload u_fastload
+(
+	.clk(clk_sys), .rst(~pll_locked), .go(fl_go), .len(fast_len), .busy(fl_busy_unused), .done(fl_done),
+	.ddr_rd(fl_ddr_rd), .ddr_addr(fl_ddr_addr), .ddr_burst(fl_ddr_burst), .ddr_busy(fl_ddr_busy), .ddr_dout(fl_ddr_dout), .ddr_dready(fl_ddr_dready),
+	.o_wr(fl_wr), .o_addr(fl_addr), .o_data(fl_data), .hold(dl_busy)
 );
 
 wire        mrom_rd, mrom_valid, rom_req, rom_ack;                 // metro_sdram's main-ROM client
@@ -364,7 +397,7 @@ metro_sdram sdram
 	.i_oki_wbase(oki_wbase), .i_oki_addr(fam_f ? yp_addr : fam_c ? {1'b0, ymf_addr} : {1'b0, oki_sd_addr}), .o_oki_data(oki_data), .o_oki_ok(oki_sd_ok),
 	.i_sr3_req(sr3_req), .i_sr3_we(sr3_we), .i_sr3_addr(sr3_addr), .i_sr3_wdata(sr3_wdata), .i_sr3_be(sr3_be), .o_sr3_rdata(sr3_rdata), .o_sr3_ack(sr3_ack),
 
-	.i_dl_wr(o_wr_ld), .i_dl_addr(o_addr_ld), .i_dl_data(o_data_ld), .o_dl_busy(dl_busy), .i_dl_active(ioctl_download),
+	.i_dl_wr(o_wr_ld), .i_dl_addr(o_addr_ld), .i_dl_data(o_data_ld), .o_dl_busy(dl_busy), .i_dl_active(ioctl_download | fast_dl),
 
 	.SDRAM_A(SDRAM_A), .SDRAM_BA(SDRAM_BA), .SDRAM_DQ(SDRAM_DQ), .SDRAM_DQML(SDRAM_DQML), .SDRAM_DQMH(SDRAM_DQMH),
 	.SDRAM_nCS(SDRAM_nCS), .SDRAM_nRAS(SDRAM_nRAS), .SDRAM_nCAS(SDRAM_nCAS), .SDRAM_nWE(SDRAM_nWE), .SDRAM_CKE(SDRAM_CKE),
@@ -378,7 +411,7 @@ metro_sdram sdram
 wire        reset_sw = RESET | status[0] | buttons[1];
 // the machine is held while a ROM loads and until the memory is up; registered, it fans out to the whole core
 reg         mc_rst_r = 1'b1;
-always @(posedge clk_sys) mc_rst_r <= reset_sw | rom_dl | dl_busy | ~mem_ready | ~pll_locked;
+always @(posedge clk_sys) mc_rst_r <= reset_sw | rom_dl | fast_dl | dl_busy | ~mem_ready | ~pll_locked;
 assign mc_rst = mc_rst_r;
 
 wire        cen_phi1, cen_phi2;
@@ -548,13 +581,15 @@ metro_hud u_hud (.clk(clk_sys), .i_mode(`DBG_OVL), .i_ce(vo_ce), .i_hblank(vo_hb
 wire [14:0] hd_rgb = vo_rgb;
 `endif
 
-// CRT Adjust (OSD page of the same name): H-Size, H-Position and V-Shift of the picture for every game, through rmonic79's line buffer (rtl/metro_crtadj.sv)
+// CRT Adjust (OSD page of the same name): H-Size, H-Position and V-Shift of the picture for every game, through rmonic79's line buffer (rtl/metro_crtadj.sv).  It is for the
+// 15 kHz output and does nothing while the scandoubler is in use (Scandoubler Fx or the framework's forced_scandoubler), as in the Metamorphic Force core
+wire        ca_on = status[101] & ~((|status[5:3]) | forced_scandoubler);
 wire [23:0] vo_rgb24 = {hd_rgb[14:10], hd_rgb[14:12], hd_rgb[9:5], hd_rgb[9:7], hd_rgb[4:0], hd_rgb[4:2]};
 wire        ca_ce, ca_hblank, ca_vblank, ca_hs, ca_vs, ca_de_osd;
 wire [23:0] vid_rgb;
 metro_crtadj u_crtadj
 (
-	.clk(clk_sys), .i_on(status[101]), .i_hsize_f(status[100:96]), .i_hpos_f(status[85:79]), .i_vshift_f(status[78:74]), .i_pdot(vo_pdot),
+	.clk(clk_sys), .i_on(ca_on), .i_hsize_f(status[100:96]), .i_hpos_f(status[85:79]), .i_vshift_f(status[78:74]), .i_pdot(vo_pdot),
 	.i_ce(vo_ce), .i_hblank(vo_hblank), .i_vblank(vo_vblank), .i_hs(vo_hs), .i_vs(vo_vs), .i_rgb(vo_rgb24),
 	.o_ce(ca_ce), .o_hblank(ca_hblank), .o_vblank(ca_vblank), .o_hs(ca_hs), .o_vs(ca_vs), .o_rgb(vid_rgb), .o_de_osd(ca_de_osd)
 );
@@ -576,11 +611,52 @@ arcade_video #(.WIDTH(384), .DW(24)) arcade_video
 
 // The vertical games (MAME ROT90: Lady Killer, Moeyo Gonta; ROT270: Sky Alert) are rotated through a framebuffer in DDR3 (screen_rotate, from the framework's
 // arcade_video.v): the scaler then shows the framebuffer instead of the core's video.  ROT90 = rotate_ccw 0, ROT270 = rotate_ccw 1.
-wire no_rotate  = status[2] | direct_video | rot_none;
+assign no_rotate = status[2] | direct_video | rot_none;
 wire rotate_ccw = (cfg_rot == 2'd3);
+
+// Scale: the framework's video_freak turns the aspect ratio and the picture's own size into VIDEO_ARX / VIDEO_ARY: with Normal they pass through as they are; the integer
+// modes replace them with the exact size in pixels (bit 12 set) that the HDMI scaler is to give the picture.  The menu's order is the user's; video_freak's SCALE input counts
+// 0 Normal, 1 V-Integer, 2 Narrower HV-Integer, 3 HV-Integer+ (wider), 4 HV-Integer.  The vertical games are shown from the framebuffer screen_rotate fills (the scaler gets its
+// own size, rotated), which video_freak does not know about: Scale stays Normal for them (the menu entry is hidden); with Rotate screen Off they are scaled like any other game.
+reg   [2:0] scale_sel;
+always @* begin
+	case (status[34:32])
+		3'd1:    scale_sel = 3'd1;   // V-Integer
+		3'd2:    scale_sel = 3'd4;   // HV-Integer
+		3'd3:    scale_sel = 3'd2;   // Narrower HV-Integer
+		3'd4:    scale_sel = 3'd3;   // HV-Integer+
+		default: scale_sel = 3'd0;   // Normal
+	endcase
+	if (!no_rotate) scale_sel = 3'd0;
+end
+// Full Screen is ARX = ARY = 0 ("fill"), which has no proportions for the integer rule to size the width from: it sizes the height from the width instead and asks for more
+// rows than the screen has.  With an integer Scale the screen's own proportions stand in for it, so the picture is a whole-number size in the screen's aspect.
+wire fs_int = (ar == 2'd1) && (scale_sel != 3'd0) && (HDMI_WIDTH != 12'd0) && (HDMI_HEIGHT != 12'd0);
 wire flip       = 1'b0;
 wire video_rotated;
-screen_rotate screen_rotate (.*);
+wire        rot_we, rot_rd, rot_clk, ddr_overflow;
+wire  [7:0] rot_burst, rot_be;
+wire [28:0] rot_addr;
+wire [63:0] rot_din;
+screen_rotate screen_rotate
+(
+	.*,
+	.DDRAM_CLK(rot_clk), .DDRAM_BUSY(DDRAM_BUSY), .DDRAM_BURSTCNT(rot_burst), .DDRAM_ADDR(rot_addr), .DDRAM_DIN(rot_din), .DDRAM_BE(rot_be),
+	.DDRAM_WE(rot_we), .DDRAM_RD(rot_rd)
+);
+
+// DDR3: the rotated frame buffer's writes (screen_rotate never looks at DDRAM_BUSY: they are queued) and the fast load's block reads
+metro_ddr u_ddr
+(
+	.clk(clk_sys), .reset(~pll_locked),
+	.c_rd(fl_ddr_rd), .c_addr(fl_ddr_addr), .c_burst(fl_ddr_burst), .c_busy(fl_ddr_busy), .c_dout(fl_ddr_dout), .c_dready(fl_ddr_dready),
+	.r_we(rot_we), .r_addr(rot_addr), .r_din(rot_din), .r_be(rot_be),
+	.DDRAM_BUSY(DDRAM_BUSY), .DDRAM_BURSTCNT(DDRAM_BURSTCNT), .DDRAM_ADDR(DDRAM_ADDR),
+	.DDRAM_DOUT(DDRAM_DOUT), .DDRAM_DOUT_READY(DDRAM_DOUT_READY),
+	.DDRAM_RD(DDRAM_RD), .DDRAM_DIN(DDRAM_DIN), .DDRAM_BE(DDRAM_BE), .DDRAM_WE(DDRAM_WE),
+	.overflow(ddr_overflow)
+);
+assign DDRAM_CLK = clk_sys;
 
 video_freak video_freak
 (
@@ -592,12 +668,12 @@ video_freak video_freak
 	.VGA_DE(VGA_DE),
 	.VIDEO_ARX(VIDEO_ARX),
 	.VIDEO_ARY(VIDEO_ARY),
-	.VGA_DE_IN(status[101] ? ca_de_osd : vga_de_mix),
-	.ARX((ar == 2'd0) ? (no_rotate ? 12'd4 : 12'd3) : {10'd0, ar - 2'd1}),
-	.ARY((ar == 2'd0) ? (no_rotate ? 12'd3 : 12'd4) : 12'd0),
+	.VGA_DE_IN(ca_on ? ca_de_osd : vga_de_mix),
+	.ARX(fs_int ? HDMI_WIDTH  : (ar == 2'd0) ? (no_rotate ? 12'd4 : 12'd3) : {10'd0, ar - 2'd1}),
+	.ARY(fs_int ? HDMI_HEIGHT : (ar == 2'd0) ? (no_rotate ? 12'd3 : 12'd4) : 12'd0),
 	.CROP_SIZE(12'd0),
 	.CROP_OFF(5'd0),
-	.SCALE(3'd0)
+	.SCALE(scale_sel)
 );
 
 ///////////////////////   LEDs   ///////////////////////

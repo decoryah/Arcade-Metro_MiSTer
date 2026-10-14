@@ -64,7 +64,9 @@ The zip of a GitHub release unpacks over the root of the SD card. By hand:
    (the other versions of a title are in `_alternatives/_<Title>/`). Keep the RBF names and dates: MiSTer finds the core by the MRA's `<rbf>` name and takes the newest.
    **Delete older `metro*.rbf` files.**
 2. Put your MAME 0.289 romsets in `/media/fat/games/mame/` (the merged set, or the split sets with their parent zip).
-3. Start the game from the Arcade menu. The ROM takes a few seconds to load (up to 36 MB for Blazing Tornado and Gakuensai).
+3. Start the game from the Arcade menu. With a recent Main_MiSTer the ROM image (up to 36 MB for Blazing Tornado and Gakuensai) loads in about a second or two
+   (**fast loading**: the MRAs carry `address="0x32000000"`, which makes Main_MiSTer copy the whole image into the DDR3 at once, and the core plays it from there into the
+   SDRAM); an older Main_MiSTer ignores the attribute and streams the image as before, which takes much longer. Use the MRAs of the same release as the cores.
 4. **Buttons:** if you used an earlier build, delete `/media/fat/config/inputs/Metro_input_*.map` or redo "Define Metro buttons" (Button 1, Button 2, Start, Coin, Button 3).
 
 ### `metro` (32 MB module)
@@ -146,16 +148,17 @@ The joystick word is laid out by the MRA's `<buttons>` list (bit 4 = first name)
 | Option | Values | |
 |---|---|---|
 | Aspect ratio | Original, Full Screen, [ARC1], [ARC2] | Original is 4:3 |
+| Scale | Normal, V-Integer, HV-Integer, Narrower HV-Integer, HV-Integer+ | integer scaling on the HDMI scaler (the analog output is not affected; Normal is as before). With Full Screen the picture is the largest whole-number size in the screen's own proportions. Not shown for the vertical games while Rotate screen is On |
 | Scandoubler Fx | None, HQ2x, CRT 25 / 50 / 75 % | |
 | Display window | Game's CRTC, MAME | the chip's own CRTC window or MAME's fixed lines 0 - 223 (flipped, the window is always MAME's) |
 | Rotate screen | On, Off | only on the vertical games (Sky Alert, Lady Killer, Moeyo Gonta): On turns the picture upright through the framebuffer |
-| CRT Adjust (a page of its own) | Off / On, H-Size, H-Position, V-Shift | for the analog output of every game, after rmonic79's [MiSTer-CRT-Adjust](https://github.com/rmonic79/MiSTer-CRT-Adjust) (`modules/crt_adjust`) |
+| CRT Adjust (a page of its own) | Off / On, H-Size, H-Position, V-Shift | for the 15 kHz analog output of every game (it does nothing while the scandoubler is in use), after rmonic79's [MiSTer-CRT-Adjust](https://github.com/rmonic79/MiSTer-CRT-Adjust) (`modules/crt_adjust`) |
 | DIP switches | per game | the MRA's switches (coinage, difficulty, Flip Screen, Service Mode, ...); most are read by the game at start-up: change them and press Reset. **Flip Screen is the exception: the core flips the picture itself at once** |
 | Volume | Normal, -6 dB, -12 dB, +6 dB | |
 | Reset | | restarts the machine |
 
 The hardware test switches of the development builds (SDRAM read capture, Debug overlay, Plane fetch priority, CPU sprite write hold, Sound board, Tile RAM frame sync) are not in
-the release cores; build with `METRO_DEBUG` (see Build) to get them back. Every one is at the setting that was tested on the boards (the frame-synchronous tile RAM is on in `metrof64`).
+the release cores; build with `METRO_DEBUG` (see Build) to get them back. Every one is at the setting that was tested on the boards (the frame-synchronous tile RAM is on in `metrof64` and, for the I4300 boards only, in `metro` and `metrod64`).
 
 ## Status
 
@@ -169,14 +172,17 @@ of the games' own writes. `docs/status.md` has the measured results, the bugs fo
 * `metrof64`: Blazing Tornado and Grand Striker 2 play, picture and sound; the frame-synchronous tile RAM removed the flickering band of the continue screen and the dashes of
   Grand Striker 2's title.
 * `metrod64`: Mouse Shooter GoGo, Bal Cube, Daitoride (YMF278B version), Bang Bang Ball, Battle Bubble and Mahjong Gakuensai 1 / 2 play well, the YMF278B sounds right. The
-  graphical glitches that Gakuensai 1 and 2 showed in 20261012 / 20261013 (flashing blocks on the girls, garbled mouth patches) are gone with the blit queue of 20261014a.
+  graphical glitches that Gakuensai 1 and 2 showed in 20261012 / 20261013 (flashing blocks on the girls, garbled mouth patches) are gone with the blit queue of 20261014a, and the
+  flashing speech bubbles of its tutorial with the frame-synchronous I4300 boards of 20261014b / d.
 * `metro`: hardware reports exist for Dharma Doujou, Toride II, Gun Master, Pururun, Daitoride, Puzzli, The Karate Tournament, Lady Killer, Pang Pom's, Sky Alert, Last
-  Fortress, Poitto!, Mahjong Doukyuusei (+ Special) and Varia Metal. Sankokushi and Mouja are verified in simulation only (no hardware report on file).
+  Fortress, Poitto!, Mahjong Doukyuusei (+ Special) and Varia Metal. Mahjong Doukyuusei's flashes in the intro are gone since 20261014b / d.
+* **Release 20261014d**: the owner started every game of the three cores on the boards (32 MB and 64 MB modules): all work. Fast loading, the Scale option and the Doukyuusei /
+  Gakuensai picture fixes were checked on the boards.
 
 **Known issues**
 
 * Daitoride (the plain version, `metro`): single torn scanlines on the rising rocks (the YMF278B version on `metrod64` does not show them).
-* Mahjong Doukyuusei: a bright frame in some portrait scenes. The Karate Tournament: rectangles in explosions were reported on an earlier build and not re-checked.
+* The Karate Tournament: rectangles in explosions were reported on an earlier build and not re-checked.
 * Mouse Shooter GoGo (`metrod64`): small quirks (flashing lines in the busy scenes, the title scroll); a replay of MAME's own writes matches MAME to a few hundred pixels,
   the cause is not found.
 * Bang Bang Ball and Battle Bubble run at the core's 58.2 Hz (MAME: 60 Hz). Mahjong Gakuensai's EEPROM (settings) is not saved.

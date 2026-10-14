@@ -23,7 +23,7 @@ EXTRA=""
 [ -z "$SOUNDF" ] || EXTRA="$EXTRA -DTB_SOUND_F -I../rtl ../rtl/metro_sndf.sv ../rtl/metro_ympcm.sv ../rtl/metro_mrom_arb.sv ../modules/jt10/*.v ../modules/jt49/*.v ../modules/cpu-tv80/*.v"
 [ -z "$SOUND" ] || EXTRA="$EXTRA -DTB_SOUND -I../rtl -I../modules/ikaopll -I../modules/jt6295/hdl -I../modules/jt51/hdl ../rtl/upd78c10.sv ../rtl/metro_sound.sv ../modules/ikaopll/IKAOPLL.v ../modules/ikaopll/IKAOPLL_modules/*.v ../modules/jt51/hdl/*.v ../modules/jt6295/hdl/jt6295.v ../modules/jt6295/hdl/jt6295_adpcm.v ../modules/jt6295/hdl/jt6295_timing.v ../modules/jt6295/hdl/jt6295_acc.v ../modules/jt6295/hdl/jt6295_ctrl.v ../modules/jt6295/hdl/jt6295_rom.v ../modules/jt6295/hdl/jt6295_serial.v ../modules/jt6295/hdl/jt6295_sh_rst.v"
 if [ -z "$NOBUILD" ]; then
-verilator --cc --exe --build -j 8 -O3 --x-assign fast --x-initial fast -DSIM ${F64:+-DF64} ${DBUILD:+-DD_BUILD} ${VLOG:+-DF_VLOG} ${VLOG_CHECK:+-DVLOG_CHECK} ${ROZ_PROBE:+-DROZ_PROBE} ${NO_SPR_HOLD:+-DNO_SPR_HOLD} -CFLAGS "-O3 -march=native" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O1" \
+verilator --cc --exe --build -j 8 -O3 --x-assign fast --x-initial fast -DSIM ${F64:+-DF64} ${DBUILD:+-DD_BUILD} ${VLOG:+-DF_VLOG} ${DVLOG:+-DD_VLOG} ${VLOG_CHECK:+-DVLOG_CHECK} ${ROZ_PROBE:+-DROZ_PROBE} ${NO_SPR_HOLD:+-DNO_SPR_HOLD} -CFLAGS "-O3 -march=native" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O1" \
     -Wall -Wno-fatal -Wno-DECLFILENAME -Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-PINCONNECTEMPTY -Wno-WIDTH -Wno-CASEINCOMPLETE \
     -Wno-TIMESCALEMOD -Wno-PINMISSING -Wno-INITIALDLY -Wno-UNDRIVEN -Wno-SYNCASYNCNET -Wno-MULTIDRIVEN -Wno-LATCH -Wno-BLKSEQ \
     -Wno-UNSIGNED -Wno-CMPCONST -Wno-VARHIDDEN -Wno-BLKANDNBLK --no-assert-case -Wno-PROCASSINIT -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND \

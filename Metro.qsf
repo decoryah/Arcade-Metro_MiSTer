@@ -375,10 +375,12 @@ set_global_assignment -name PLACEMENT_EFFORT_MULTIPLIER 2.0
 #   D_BUILD   no 053936 plane, no Z80 / YM2610 board (family F); the uPD78C10 board, the ES8712 and the YM2413 / OKI sound are built
 #   F_BUILD   the family F build: the uPD78C10 board, the ES8712 and the OKI sound board are not built
 #   F64       64 MB SDRAM addressing (graphics up to 32 MB: Mahjong Gakuensai; family F's 24 MB)
-#   F_VLOG    family F: the frame-synchronous tile RAM
+#   F_VLOG    family F: the frame-synchronous tile RAM (4,096-slot log)
+#   D_VLOG    the I4300 boards (Mahjong Doukyuusei, Mouja, Gakuensai ...): the same log, 2,048 slots, active only on those boards
 #   NO_YMF    the YMF278B (family C) is not built
 #   METRO_DEBUG  the hardware test switches in the OSD (SDRAM read capture, Debug overlay, Plane fetch priority, CPU sprite write hold, Sound board, Tile RAM frame sync)
 # VARIANT-BEGIN
 set_global_assignment -name VERILOG_MACRO "D_BUILD"
+set_global_assignment -name VERILOG_MACRO "D_VLOG"
 set_global_assignment -name VERILOG_MACRO "NO_YMF"
 # VARIANT-END

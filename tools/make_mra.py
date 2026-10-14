@@ -170,7 +170,7 @@ def mra(name, roms, games):
     else:
         L.append('    <buttons names="Button 1,Button 2,Start,Coin,Button 3" default="A,B,Start,Select,X"/>')
     L.append('')
-    L.append('    <rom index="0" zip="%s" md5="None">' % '|'.join(zips))
+    L.append('    <rom index="0" zip="%s" md5="None" address="0x32000000">' % '|'.join(zips))
     # the configuration block is first: the loader needs it before the graphics arrive (tools/metro_rom.py)
     L.append('')
     L.append('        <!-- configuration -->')

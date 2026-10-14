@@ -57,7 +57,9 @@ module metro_vdp #(
     parameter bit FREE_TIMING = 1'b0,
     // METRO (family F): 1 = the frame-synchronous layer RAM (see "P_VLOG" below the CPU bus decode): the 68000's writes to the three tile layers and the tile table are kept in a log
     // and applied at the instant the sprite list and the scroll registers are copied, so a frame is drawn from one state, as MAME draws it.  0 = live RAM as before (no logic).
-    parameter bit P_VLOG = 1'b0
+    parameter bit P_VLOG = 1'b0,
+    // P_VLOG: the log's size, 2 ** P_LG_AW slots of 20 bits (family F: 4,096; the I4300 boards of the D builds: 2,048, their biggest frame is 1,313 slots)
+    parameter int P_LG_AW = 12
 ) (
     input  logic clk,
     input  logic rst_n,
@@ -364,6 +366,13 @@ module metro_vdp #(
   logic [5:0]  r_layer_pri;
   logic [11:0] r_bg;
   logic [15:0] r_scr_xoff, r_scr_yoff;
+  // I4300 boards (20261014b): MAME draws the frame once, at line v_vis, with the registers as they are then.  The renderer here samples these live, line by line, so a
+  // register the game writes in the vblank handler (Mahjong Doukyuusei's credits: the sprite colour offset and the background pen at line ~233, the figure turned into a
+  // black silhouette and the background pen changed a whole picture before MAME shows it) reaches the picture a frame early.  They are copied with the sprite list instead.
+  logic [15:0] r_spr_pri_q, r_spr_yoff_q, r_spr_xoff_q, r_spr_color_q, r_scr_xoff_q, r_scr_yoff_q;
+  logic [5:0]  r_layer_pri_q;
+  logic [11:0] r_bg_q;
+  wire         rg_snap = i_i4300 && !i_scan_irq;
   logic [15:0] r_window [6];   // y0,x0,y1,x1,y2,x2
   logic [15:0] r_scroll [6];
   // METRO (20261009e): the window and scroll registers as they were when the sprite RAM copy started, and what the renderer uses (except on Puzzli's board, which draws raster effects
@@ -534,12 +543,16 @@ module metro_vdp #(
     // write the next frame's list through the whole frame (Grand Striker 2's intro: 404 words a frame spread over lines 0-262).  A copy at the last line (262) sees a half-written new
     // list: the blocks / shards of the hardware video (replay of MAME frames 1160-1360: 53 of 100 pictures more than 500 pixels off, 7 with the copy at 224).  The copy is taken as
     // soon as the renderer has kicked the last displayed line (v_vis + crtc_vfirst: 224 with MAME's window, 235 with the game's CRTC window of 11).
+    // METRO (20261014b, I4300 boards with 240 lines: Mahjong Gakuensai 1 / 2): the game rewrites the whole sprite list (the speech bubbles of the tutorial are sprites) from line ~250 of
+    // one frame to line ~46 of the next, and MAME draws the frame at line 240, with the finished list.  A copy at crtc_vfirst of the next frame caught the list half rewritten: holes in
+    // the bubbles, the HUD icons missing for a frame (replay of MAME frames 6700 - 6900: 20 of 200 pictures off, 0 with the copy at v_vis; 11700 - 11900 (play): 11 of 200, 0).
     spr_copy_line <= i_spr_early ? 9'(P_VBL_LINE)
 `ifdef F_COPY224
                    : i_roz_en ? 9'(P_VBL_LINE)
 `else
                    : i_roz_en ? (v_vis + 9'(crtc_vfirst_q))
 `endif
+                   : i_i4300 ? v_vis                    // I4300 boards: MAME's render line (see below)
                    : (((!P_VBL_FOLLOWS_WINDOW && !i_tall) || crtc_vfirst_q == 8'd0) ? vlast : (i_tall ? 9'(crtc_vfirst_q) : 9'(crtc_vfirst_q) - 9'd1));
   end
   // METRO (I4100 boards): the tile table copy.  Lady Killer and Karate Tournament rewrite the whole 2 KB tile table with the 68000 every frame (tile definitions read from the graphics
@@ -721,15 +734,15 @@ module metro_vdp #(
     .o_pst_addr(rnd_pst_addr), .i_pst_data(pst_rnd_q),
     .i_pst_valid(pst_valid),
     .o_busy(rnd_busy), .o_done(rnd_done),
-    .i_layer_pri(r_layer_pri),
-    .i_bg_color(r_bg), .i_roz_pen(i_roz_pen), .i_roz_op(i_roz_op), .o_roz_addr(o_roz_x),
+    .i_layer_pri(rg_snap ? r_layer_pri_q : r_layer_pri),
+    .i_bg_color(rg_snap ? r_bg_q : r_bg), .i_roz_pen(i_roz_pen), .i_roz_op(i_roz_op), .o_roz_addr(o_roz_x),
     .i_screen_ctrl(r_ctrl),
     .i_window_x(rs_window_x), .i_window_y(rs_window_y),
     .i_sw_x(rnd_sw_x), .i_sw_y(rnd_sw_y),
-    .i_spr_count(spr_count_q), .i_spr_pri(r_spr_pri),
-    .i_spr_xoff(r_spr_xoff), .i_spr_yoff(r_spr_yoff),
-    .i_spr_color(r_spr_color),
-    .i_screen_xoff(r_scr_xoff), .i_screen_yoff(r_scr_yoff),
+    .i_spr_count(spr_count_q), .i_spr_pri(rg_snap ? r_spr_pri_q : r_spr_pri),
+    .i_spr_xoff(rg_snap ? r_spr_xoff_q : r_spr_xoff), .i_spr_yoff(rg_snap ? r_spr_yoff_q : r_spr_yoff),
+    .i_spr_color(rg_snap ? r_spr_color_q : r_spr_color),
+    .i_screen_xoff(rg_snap ? r_scr_xoff_q : r_scr_xoff), .i_screen_yoff(rg_snap ? r_scr_yoff_q : r_scr_yoff),
     .i_gfx_size(i_gfx_size),
     .o_vram_addr(rnd_vram_addr), .i_vram_data(rnd_vram_q),
     .o_tt_addr(rnd_tt_addr), .i_tt_data(rnd_tt_q),
@@ -963,6 +976,7 @@ module metro_vdp #(
       cp_cnt <= '0;
       spr_count_q <= '0;
       for (int i = 0; i < 6; i++) begin r_window_q[i] <= '0; r_scroll_q[i] <= '0; end
+      r_spr_pri_q <= '0; r_spr_yoff_q <= '0; r_spr_xoff_q <= '0; r_spr_color_q <= '0; r_scr_xoff_q <= '0; r_scr_yoff_q <= '0; r_layer_pri_q <= '0; r_bg_q <= '0;
     end else begin
       // METRO: upstream only had the buffered path (copy at vblank start, so sprites show one frame late; Hyper Duel's MAME model).
       // Metro boards use MAME's UNBUFFERED sprite RAM (live at render time).  This architecture renders from the copy, so for
@@ -974,6 +988,8 @@ module metro_vdp #(
         cp_cnt <= '0;
         spr_count_q <= r_spr_count;
         for (int i = 0; i < 6; i++) begin r_window_q[i] <= r_window[i]; r_scroll_q[i] <= r_scroll[i]; end
+        r_spr_pri_q <= r_spr_pri; r_spr_yoff_q <= r_spr_yoff; r_spr_xoff_q <= r_spr_xoff; r_spr_color_q <= r_spr_color;
+        r_scr_xoff_q <= r_scr_xoff; r_scr_yoff_q <= r_scr_yoff; r_layer_pri_q <= r_layer_pri; r_bg_q <= r_bg;
       end else if (cp_run) begin
         cp_q <= spr_live_b_q;
         if (cp_cnt == 12'd2049) cp_run <= 1'b0;
@@ -1293,6 +1309,8 @@ module metro_vdp #(
   // (lines after v_vis + crtc_vfirst) and run in order, so a picture shows all the blits of a frame or none, with the palette that goes with them.  A 68000 access to the tile RAM, or a
   // trigger with the queue full, runs the queue at once (order kept; that picture tears as before).  The done interrupt follows the trigger by 500 us, as MAME's timer does
   // (a trigger within the 500 us re-arms it).  Other boards are untouched.
+  logic        lg_mode, lg_hold, lg_acc, lg_quiet;      // P_VLOG: see the block below (declared here: the queue's pop waits for the log)
+  logic        lg_pre_ok;                                // P_VLOG: everything logged before the frame's cut is in the RAM (1 without the log)
   localparam int BQ_DEPTH = 8;
   (* ramstyle = "MLAB" *) logic [57:0] bq_mem [0:BQ_DEPTH-1];
   logic [2:0]  bq_wp, bq_rp;
@@ -1306,7 +1324,8 @@ module metro_vdp #(
   wire         bq_trig = i_i4300 && i_cs && !i_rnw && ((i_addr & 19'h7FFFE) == 19'h7884C);   // the trigger write the 68000 is making
   wire         bq_cpu  = i_i4300 && i_cs && (in_vram || in_rmw);
   assign       bq_force = (bq_cpu && bq_pend) || (bq_trig && bq_full);
-  wire         bq_pop  = i_i4300 && (bq_cnt != 4'd0) && !bl_busy && !bq_go && ((bq_rel != 4'd0 && !bl_hold) || bq_force);
+  wire         bq_want = i_i4300 && (bq_cnt != 4'd0) && !bl_busy && !bq_go && ((bq_rel != 4'd0 && !bl_hold) || bq_force);   // a blit is due
+  wire         bq_pop  = bq_want && lg_pre_ok;                                        // P_VLOG: the blit runs after the writes older than the cut (which follow the frame)
   wire         bq_t    = line_start && (next_v == v_vis);                                  // MAME's render instant (the palette snapshot's line)
   wire  [3:0]  bq_cnt_n = bq_cnt + 4'(bq_push) - 4'(bq_pop);
   always_ff @(posedge clk) begin
@@ -1347,7 +1366,6 @@ module metro_vdp #(
   wire [15:0] q_scr = scr_q_a;
 
   // drive BRAM port A addresses continuously from the CPU bus
-  logic        lg_mode, lg_hold, lg_acc, lg_quiet;      // P_VLOG: see the block below
   logic        dir_ok;                                   // P_VLOG: the log is off and empty: the 68000's layer RAM / tile table write goes to the RAM at once (registered)
   logic        ap_we_v;                                  // the log being applied: one word to the layer RAM / tile table this clock
   logic [1:0]  ap_a_sel, ap_a_be;
@@ -1427,7 +1445,7 @@ module metro_vdp #(
   // The 68000 never sees the difference: a read of the layer RAM waits until the log is applied (a few clocks a slot), then goes to the RAM as before; this only costs the
   // instant when it happens.  The blitter (not used by family F's games) writes the RAM directly after the log is empty; its start waits for that.
   // ------------------------------------------------------------------
-  localparam int LG_AW = 12;                                   // 4096 slots of 20 bits (MLAB: the M10K blocks are all used)
+  localparam int LG_AW = P_LG_AW;                              // 2 ** LG_AW slots of 20 bits (MLAB: the M10K blocks are all used)
   localparam int LG_N  = LG_AW + 1;                            // pointer width (one lap bit)
   logic [15:0] ovl_val, ovl_m;                                 // a read of the layer RAM while the log holds writes: the words (and their byte lanes) the log would have written there
   logic [15:0] lg_st_w;                                        // the telemetry word for the overlay: {reads answered through the log, writes that found it full, groups applied at the deadline, peak occupancy / 256}, running totals
@@ -1481,7 +1499,7 @@ module metro_vdp #(
     logic        ap_pend, ap_rel, cut_pend, cut_par, cut_par_q;
     wire lg_quiet_c = (lg_wp == lg_rp) && (a_st == A_IDLE) && !ap_we_v && !pq_busy && !ro_v;
     logic quiet_q, mode_q, full_q;
-    wire  mode_c = i_roz_en && i_vlog_en && !bl_busy && !bl_start_h;
+    wire  mode_c = (i_roz_en || i_i4300) && i_vlog_en && (i_i4300 || (!bl_busy && !bl_start_h));
     always_ff @(posedge clk) begin                                            // registered: they decide the 68000's access, which must not wait for a compare of the pointers
       quiet_q <= lg_quiet_c;
       mode_q  <= mode_c;
@@ -1489,6 +1507,7 @@ module metro_vdp #(
       dir_ok  <= !mode_c && lg_quiet_c;
     end
     assign lg_quiet = quiet_q;
+    assign lg_pre_ok = (lg_rp == lg_cut) && !cut_pend && (a_st == A_IDLE) && !ap_we_v;
 
     wire cpu_vl_sel  = in_vram || in_rmw || in_tt;
     wire cpu_wants   = cpu_vl_sel && i_cs && (bst == B_IDLE);
@@ -1506,20 +1525,30 @@ module metro_vdp #(
     assign bl_start_go = bl_start_h && lg_quiet;
     always_ff @(posedge clk) begin
       if (!rst_n)                       bl_start_h <= 1'b0;
-      else if (bl_start)                bl_start_h <= 1'b1;
+      else if (bl_start && !i_i4300)    bl_start_h <= 1'b1;                    // (the I4300 boards' blits go through the queue)
       else if (bl_start_h && lg_quiet)  bl_start_h <= 1'b0;
     end
 
     // ---- the instant of the copy (same condition as cp_run's start), the renderer being done with the frame, the deadline
-    wire        cut_ev   = line_start && ((P_SPR_BUFFERED && next_v == v_vis) || (!P_SPR_BUFFERED && next_v == spr_copy_line));
+    // I4300 boards: the instant is MAME's render line v_vis (the sprite list and the registers are copied there too), not the sprite copy line (crtc_vfirst - 1 of the next
+    // frame): the writes of the vblank handler (lines v_vis ... 262, 0 ...) belong to MAME's NEXT frame and must not be applied before this picture is done.  The log is
+    // applied only once the renderer has been kicked for the last displayed line (kicks_done, v_vis + crtc_vfirst) and is done: the window of crtc_vfirst lines between the two
+    // (11 on Mahjong Doukyuusei Special's / Mouja's CRTC) is written to the log after the cut and belongs to the next picture (Mouja's "INSERT COIN" blinked a frame early)
+    wire [8:0]  cut_line = i_i4300 ? v_vis : spr_copy_line;
+    logic       kicks_done;
+    always_ff @(posedge clk) begin
+      if (cut_ev) kicks_done <= 1'b0;
+      if (line_start && next_v == v_vis + 9'(crtc_vfirst_q)) kicks_done <= 1'b1;
+    end
+    wire        cut_ev   = line_start && ((P_SPR_BUFFERED && next_v == v_vis) || (!P_SPR_BUFFERED && next_v == cut_line));
     wire [8:0]  dl_line  = (crtc_vfirst_q >= 8'd4) ? 9'(crtc_vfirst_q) - 9'd3 : 9'd0;   // before the first displayed line is kicked: apply whatever is left
     wire        dl_ev    = line_start && (next_v == dl_line);
     wire        head_par = kick_fifo[kf_rd][105];
-    wire        ren_done = (kf_cnt == 4'd0 || head_par != cut_par) && !rnd_busy && !rnd_start && !pop_pend;
+    wire        ren_done = (kf_cnt == 4'd0 || head_par != cut_par) && !rnd_busy && !rnd_start && !pop_pend && (!i_i4300 || kicks_done);
     wire        force_all = (cpu_wants && (need_quiet || (!i_rnw && lg_full2))) || bl_start_h;
     wire [LG_N-1:0] tgt  = force_all ? lg_wp : lg_cut;
     wire        more     = (lg_rp != tgt);
-    wire        drain    = (a_st == A_IDLE) && (ap_rel || force_all) && more && !scan_req && (s_st == S_IDLE);
+    wire        drain    = (a_st == A_IDLE) && (ap_rel || force_all) && more && !scan_req && (s_st == S_IDLE) && !(i_i4300 && bl_busy);
     // an open run is closed (it becomes a slot the apply side and the scan may read) when the log has to be consumed or looked into
     wire        close_now = ro_v && !pq_busy && (cut_pend || force_all || scan_req);
     wire        scan_start = scan_req && (a_st == A_IDLE) && !ap_we_v && !pq_busy && !ro_v;
@@ -1674,6 +1703,7 @@ module metro_vdp #(
     assign lg_hold = 1'b0;
     assign lg_acc  = 1'b0;
     assign lg_quiet = 1'b1;
+    assign lg_pre_ok = 1'b1;
     assign ap_we_v = 1'b0;
     assign ap_a_sel = 2'd0;
     assign ap_a_addr = 16'd0;
@@ -2058,7 +2088,7 @@ module metro_vdp #(
       hb0 <= !(hcnt < h_vis);
       vb0 <= !(vdisp < v_vis);
       so_pen <= (hcnt >= h_vis) ? 12'd0
-              : so_stale              ? r_bg
+              : so_stale              ? (rg_snap ? r_bg_q : r_bg)
               :                         lb_rq;
       // stage 1: palette lookup
       de1 <= de0;
