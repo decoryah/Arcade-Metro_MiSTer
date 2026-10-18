@@ -30,14 +30,14 @@
         <dip bits="4,5" name="Extra Time" ids="Off,1:00,0:45,0:30"/>
         <dip bits="6" name="Unknown" ids="On,Off"/>
         <dip bits="7" name="Time Period" ids="Full,Sudden Death"/>
-        <dip bits="8,9,10" name="Difficulty" ids="Very Hard,Hardest,Hard,Medium,Normal,Easy,Easier,Very Easy"/>
+        <dip bits="8,10" name="Difficulty" ids="Very Hard,Hardest,Hard,Medium,Normal,Easy,Easier,Very Easy"/>
         <dip bits="11" name="Demo Sounds" ids="Off,On"/>
         <dip bits="12" name="Unknown" ids="On,Off"/>
         <dip bits="13" name="Unknown" ids="On,Off"/>
         <dip bits="14" name="Flip Screen" ids="On,Off"/>
         <dip bits="15" name="Service Mode" ids="On,Off"/>
-        <dip bits="16,17,18,19,20" name="Coin A" ids="4 Coins/8 Credits,3 Coins/8 Credits,2 Coins/8 Credits,1 Coin/8 Credits,4 Coins/7 Credits,3 Coins/7 Credits,2 Coins/7 Credits,1 Coin/7 Credits,4 Coins/6 Credits,3 Coins/6 Credits,2 Coins/6 Credits,1 Coin/6 Credits,4 Coins/5 Credits,3 Coins/5 Credits,2 Coins/5 Credits,1 Coin/5 Credits,4 Coins/4 Credits,3 Coins/4 Credits,2 Coins/4 Credits,1 Coin/4 Credits,4 Coins/3 Credits,3 Coins/3 Credits,2 Coins/3 Credits,1 Coin/3 Credits,4 Coins/2 Credits,3 Coins/2 Credits,2 Coins/2 Credits,1 Coin/2 Credits,4 Coins/1 Credit,3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/1 Credit"/>
-        <dip bits="21,22,23" name="Coin B" ids="1 Coin/7 Credits,1 Coin/6 Credits,1 Coin/5 Credits,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,1 Coin/1 Credit,Same as Coin A"/>
+        <dip bits="16,20" name="Coin A" ids="4 Coins/8 Credits,3 Coins/8 Credits,2 Coins/8 Credits,1 Coin/8 Credits,4 Coins/7 Credits,3 Coins/7 Credits,2 Coins/7 Credits,1 Coin/7 Credits,4 Coins/6 Credits,3 Coins/6 Credits,2 Coins/6 Credits,1 Coin/6 Credits,4 Coins/5 Credits,3 Coins/5 Credits,2 Coins/5 Credits,1 Coin/5 Credits,4 Coins/4 Credits,3 Coins/4 Credits,2 Coins/4 Credits,1 Coin/4 Credits,4 Coins/3 Credits,3 Coins/3 Credits,2 Coins/3 Credits,1 Coin/3 Credits,4 Coins/2 Credits,3 Coins/2 Credits,2 Coins/2 Credits,1 Coin/2 Credits,4 Coins/1 Credit,3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/1 Credit"/>
+        <dip bits="21,23" name="Coin B" ids="1 Coin/7 Credits,1 Coin/6 Credits,1 Coin/5 Credits,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,1 Coin/1 Credit,Same as Coin A"/>
         <dip bits="24,25" name="Credits to Start" ids="4,3,2,1"/>
         <dip bits="26,27" name="Credits to Continue" ids="4,3,2,1"/>
         <dip bits="28" name="Continue" ids="Off,On"/>

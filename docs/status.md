@@ -1465,6 +1465,16 @@ Killer's ports but one button), the names the games show, else the report's, els
 joystick's Start and Coin still work).  All 47 MRAs regenerated: only their `<buttons>` line changed.  The core's bit layout is unchanged (button 1, 2 = bits 4, 5, Start 6,
 Coin 7, button 3 = 8, family F's fourth = 9).
 
+## The MRAs' DIP switches of three and more bits (2026-10-19; MRAs only)
+
+The same player: "only cycling through Free Play, 4 Coins/1 Credit, 3 Coins/1 Credit, 2 Coins/1 Credit" for Coin A (eight settings), and Blazing Tornado's Difficulty
+(eight) showed four.  MiSTer reads a `<dip>`'s `bits` as a RANGE, "first,last" (the other cores' MRAs: `bits="0,3"` with 16 settings), not a list; `tools/make_mra.py`
+listed every bit, so "0,1,2" meant bits 0..1.  Two-bit fields ("a,a+1") read the same either way, which is why it went unseen.  Now one bit = "n", more = "first,last"
+(a field with gaps would get the range plus `values=`: none in these games).  A second bug of the same list: MAME names with a comma ("200K, every 400K", Sky Alert's
+Bonus Life; "6C to start, 3C to continue", Blazing Tornado's Half Continue) were split into two settings and shifted the rest: the comma is now " / ".  84 DIP lines in
+42 MRAs changed (Coin A / Coin B of almost every game, Blazing Tornado's Difficulty, two Difficulty fields of three bits), names and settings otherwise the same; every
+field now has 2^bits settings.  Grand Striker 2's Coin A has five bits (32 settings), more than any other MRA on this disk shows (16): **all 32 selectable on the board** (the owner, 2026-10-19).
+
 ## Open points
 
 Toolchain: WSL Ubuntu has Verilator 5.053 (`$HOME/tools/oss-cad-suite`), g++ 9.4, GNU make 4.2.1. Run WSL commands from PowerShell, or from Git Bash with `MSYS_NO_PATHCONV=1`.

@@ -23,7 +23,7 @@
       DIP switches (ioctl index 254): byte 0 is MAME's DSW0 bits 0-7, byte 1 bits 8-15; the boards with a second port (DSW1) have it in bytes 2 and 3; a 1 is MAME's default setting.
     -->
     <switches default="FF,00,FF,00" base="16">
-        <dip bits="0,1,2" name="Coinage" ids="1 Coin/6 Credits,1 Coin/5 Credits,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/1 Credit"/>
+        <dip bits="0,2" name="Coinage" ids="1 Coin/6 Credits,1 Coin/5 Credits,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/1 Credit"/>
         <dip bits="3" name="Unused" ids="On,Off"/>
         <dip bits="4" name="Flip Screen" ids="On,Off"/>
         <dip bits="5" name="Demo Sounds" ids="Off,On"/>

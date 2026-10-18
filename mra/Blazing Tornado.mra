@@ -25,20 +25,20 @@
       DIP switches (ioctl index 254): byte 0 is MAME's DSW0 bits 0-7, byte 1 bits 8-15; the boards with a second port (DSW1) have it in bytes 2 and 3; a 1 is MAME's default setting.
     -->
     <switches default="0C,FF,FF,FF" base="16">
-        <dip bits="0,1,2" name="Difficulty" ids="Master,Expert,Hardest,Hard,Normal,Easy,Easiest,Beginner"/>
+        <dip bits="0,2" name="Difficulty" ids="Master,Expert,Hardest,Hard,Normal,Easy,Easiest,Beginner"/>
         <dip bits="3" name="Flip Screen" ids="On,Off"/>
         <dip bits="4" name="Demo Sounds" ids="On,Off"/>
         <dip bits="5" name="Allow Continue" ids="Yes,No"/>
         <dip bits="6,7" name="Control Panel" ids="4 Players,Unused,1P &amp; 2P Tag only,1P &amp; 2P vs only"/>
-        <dip bits="8,9" name="Half Continue" ids="6C to start, 3C to continue,4C to start, 2C to continue,2C to start, 1C to continue,Disabled"/>
+        <dip bits="8,9" name="Half Continue" ids="6C to start / 3C to continue,4C to start / 2C to continue,2C to start / 1C to continue,Disabled"/>
         <dip bits="10" name="Unused" ids="On,Off"/>
         <dip bits="11" name="Unused" ids="On,Off"/>
         <dip bits="12" name="Unused" ids="On,Off"/>
         <dip bits="13" name="Unused" ids="On,Off"/>
         <dip bits="14" name="Unused" ids="On,Off"/>
         <dip bits="15" name="Unused" ids="On,Off"/>
-        <dip bits="16,17,18" name="Coin A" ids="1 Coin/5 Credits,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,4 Coins/1 Credit,3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/1 Credit"/>
-        <dip bits="19,20,21" name="Coin B" ids="1 Coin/5 Credits,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,4 Coins/1 Credit,3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/1 Credit"/>
+        <dip bits="16,18" name="Coin A" ids="1 Coin/5 Credits,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,4 Coins/1 Credit,3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/1 Credit"/>
+        <dip bits="19,21" name="Coin B" ids="1 Coin/5 Credits,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,4 Coins/1 Credit,3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/1 Credit"/>
         <dip bits="22" name="Free Play" ids="On,Off"/>
         <dip bits="23" name="Service Mode" ids="On,Off"/>
         <dip bits="24,25" name="CP Single" ids="3:30,3:00,2:30,2:00"/>

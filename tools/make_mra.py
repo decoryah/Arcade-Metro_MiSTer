@@ -109,16 +109,29 @@ def dips(name):
         has1 = has1 or off != 0
         mask = int(d.get('mask'))
         shift = (mask & -mask).bit_length() - 1
-        nbits = bin(mask >> shift).count('1')
-        vals = {}
+        top = mask.bit_length() - 1
+        nbits = top - shift + 1
         for v in d.iter('dipvalue'):
-            idx = (int(v.get('value')) & mask) >> shift
-            vals.setdefault(idx, v.get('name'))
             if v.get('default') == 'yes':
                 default |= (int(v.get('value')) & mask) << off
-        ids = [vals.get(i, 'Unused') for i in range(1 << nbits)]
-        bits = ','.join(str(off + shift + i) for i in range(nbits))
-        lines.append('        <dip bits="%s" name=%s ids=%s/>' % (bits, quoteattr(d.get('name')), quoteattr(','.join(ids))))
+        # MiSTer's bits="first,last" is a RANGE of bits (a single number for one bit), not a list: "0,1,2" was read as bits 0..1 and the OSD offered the first four of
+        # eight settings (a player's report, 2026-10-19).  A field whose bits are not contiguous gets the range around them and values= (the setting's value in it).
+        if mask >> shift == (1 << nbits) - 1:
+            vals = {}
+            for v in d.iter('dipvalue'):
+                vals.setdefault((int(v.get('value')) & mask) >> shift, v.get('name'))
+            ids = [vals.get(i, 'Unused') for i in range(1 << nbits)]
+            extra = ''
+        else:
+            print('note: %s %s: bits not contiguous (mask %#x): values=' % (name, d.get('name'), mask))
+            ids, values = [], []
+            for v in d.iter('dipvalue'):
+                ids.append(v.get('name'))
+                values.append(str((int(v.get('value')) & mask) >> shift))
+            extra = ' values="%s"' % ','.join(values)
+        bits = str(off + shift) if nbits == 1 else '%d,%d' % (off + shift, off + top)
+        ids = [i.replace(', ', ' / ').replace(',', ' / ') for i in ids]        # ids is a comma list: MAME's "200K, every 400K" would be two settings
+        lines.append('        <dip bits="%s" name=%s ids=%s%s/>' % (bits, quoteattr(d.get('name')), quoteattr(','.join(ids)), extra))
     if has1:
         return (default & 255, (default >> 8) & 255, (default >> 16) & 255, (default >> 24) & 255), lines
     return (default & 255, default >> 8), lines

@@ -23,7 +23,7 @@
     -->
     <switches default="00,FF,00,EF" base="16">
         <dip bits="8,9" name="Difficulty" ids="Hardest,Hard,Normal,Easy"/>
-        <dip bits="10,11,12" name="Coinage" ids="Free Play,4 Coins/1 Credit,3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,1 Coin/1 Credit"/>
+        <dip bits="10,12" name="Coinage" ids="Free Play,4 Coins/1 Credit,3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,1 Coin/1 Credit"/>
         <dip bits="13" name="Demo Sounds" ids="Off,On"/>
         <dip bits="14" name="Game Sound" ids="Off,On"/>
         <dip bits="15" name="Auto TSUMO after REACH" ids="Yes,No"/>

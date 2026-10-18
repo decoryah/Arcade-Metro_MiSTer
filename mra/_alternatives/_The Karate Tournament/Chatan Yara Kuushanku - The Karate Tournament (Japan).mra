@@ -29,8 +29,8 @@
         <dip bits="5" name="Free Play" ids="On,Off"/>
         <dip bits="6" name="Allow Continue" ids="No,Yes"/>
         <dip bits="7" name="Demo Sounds" ids="On,Off"/>
-        <dip bits="16,17,18" name="Coin A" ids="3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/6 Credits,1 Coin/5 Credits,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,1 Coin/1 Credit"/>
-        <dip bits="19,20,21" name="Coin B" ids="3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/6 Credits,1 Coin/5 Credits,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,1 Coin/1 Credit"/>
+        <dip bits="16,18" name="Coin A" ids="3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/6 Credits,1 Coin/5 Credits,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,1 Coin/1 Credit"/>
+        <dip bits="19,21" name="Coin B" ids="3 Coins/1 Credit,2 Coins/1 Credit,1 Coin/6 Credits,1 Coin/5 Credits,1 Coin/4 Credits,1 Coin/3 Credits,1 Coin/2 Credits,1 Coin/1 Credit"/>
         <dip bits="22" name="Flip Screen" ids="On,Off"/>
         <dip bits="23" name="Service Mode" ids="On,Off"/>
     </switches>
