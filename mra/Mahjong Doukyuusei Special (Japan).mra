@@ -25,7 +25,7 @@
     <switches default="00,00" base="16">
     </switches>
 
-    <buttons names="Button 1,Button 2,Start,Coin,Button 3" default="A,B,Start,Select,X"/>
+    <buttons names="-,-,Start,Coin,-" default="A,B,Start,Select,X"/>
 
     <rom index="0" zip="dokyusp.zip" md5="None" address="0x32000000">
 

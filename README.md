@@ -67,7 +67,7 @@ The zip of a GitHub release unpacks over the root of the SD card. By hand:
 3. Start the game from the Arcade menu. With a recent Main_MiSTer the ROM image (up to 36 MB for Blazing Tornado and Gakuensai) loads in about a second or two
    (**fast loading**: the MRAs carry `address="0x32000000"`, which makes Main_MiSTer copy the whole image into the DDR3 at once, and the core plays it from there into the
    SDRAM); an older Main_MiSTer ignores the attribute and streams the image as before, which takes much longer. Use the MRAs of the same release as the cores.
-4. **Buttons:** if you used an earlier build, delete `/media/fat/config/inputs/Metro_input_*.map` or redo "Define Metro buttons" (Button 1, Button 2, Start, Coin, Button 3).
+4. **Buttons:** if you used an earlier build, delete `/media/fat/config/inputs/Metro_input_*.map` or redo "Define Metro buttons". Each MRA names only the buttons its game uses (the others are `-`, which MiSTer skips).
 
 ### `metro` (32 MB module)
 
@@ -137,7 +137,7 @@ The zip of a GitHub release unpacks over the root of the SD card. By hand:
 
 | | |
 |---|---|
-| Joystick | directions, Button 1, Button 2, Button 3, Start, Coin (Dharma: button 1 only; Gun Master uses all three) |
+| Joystick | directions, Start, Coin and the game's buttons, named in its MRA: one (Dharma Doujou, Toride II, Last Fortress, Poitto!, Bal Cube, Bang Bang Ball, Battle Bubble), three (Varia Metal: Shoot, Bomb, Change; Grand Striker 2; Blazing Tornado: Light Attack, Strong Attack, Dash), two for the others; none on the mahjong games (keyboard panel below) |
 | Keyboard | 1 / 2 start, 5 / 6 coin, 9 service, F2 test switch (MAME's key; only the I4300 boards have one: Mahjong Doukyuusei, Doukyuusei Special, Mouja, Gakuensai 1 / 2. Doukyuusei Special and Gakuensai keep their settings only in their test mode: hold F2 a moment, the test mode starts with its ROM check, which takes Gakuensai about 15 s; in Gakuensai's menu Ron = next page, N = previous) |
 | Mahjong panel (Mahjong Doukyuusei, Doukyuusei Special, Mouja, Gakuensai 1 / 2, Last Fortress Mah-jong) | keyboard, MAME's defaults: letters A-N, Left Ctrl = Kan, Left Shift = Reach, Space = Chi, Left Alt = Pon, Z = Ron, 1 = Start, 5 = Coin |
 

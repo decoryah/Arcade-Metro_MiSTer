@@ -37,7 +37,7 @@
         <dip bits="23" name="Service Mode" ids="On,Off"/>
     </switches>
 
-    <buttons names="Button 1,Button 2,Start,Coin,Button 3" default="A,B,Start,Select,X"/>
+    <buttons names="Shoot,Bomb,Start,Coin,Change" default="A,B,Start,Select,X"/>
 
     <rom index="0" zip="vmetal.zip" md5="None" address="0x32000000">
 

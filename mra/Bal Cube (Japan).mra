@@ -35,7 +35,7 @@
         <dip bits="15" name="Demo Sounds" ids="Off,On"/>
     </switches>
 
-    <buttons names="Button 1,Button 2,Start,Coin,Button 3" default="A,B,Start,Select,X"/>
+    <buttons names="Action,-,Start,Coin,-" default="A,B,Start,Select,X"/>
 
     <rom index="0" zip="balcube.zip" md5="None" address="0x32000000">
 

@@ -47,7 +47,7 @@
         <dip bits="30,31" name="Vs Tag" ids="5:00,4:00,3:00,2:30"/>
     </switches>
 
-    <buttons names="Button 1,Button 2,Start,Coin,Button 3,Button 4" default="A,B,Start,Select,X,Y"/>
+    <buttons names="Light Attack,Strong Attack,Start,Coin,Dash,-" default="A,B,Start,Select,X,Y"/>
 
     <rom index="0" zip="blzntrnd.zip" md5="None" address="0x32000000">
 

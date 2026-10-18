@@ -1450,6 +1450,21 @@ Mouja and Gakuensai 1 / 2; the settings are kept over a power-off; Bang Bang Bal
 
 `metrod64` seed 2 -0.084 ns.  Package `dist/Metro_MiSTer_20261018c.zip`, notes `dist/RELEASE_NOTES_20261018c.md` (local).
 
+## The MRAs' buttons (2026-10-18; MRAs only, the cores are unchanged)
+
+A player's report: the MRAs listed "Button 1, Button 2, Start, Coin, Button 3" (family F also "Button 4") for every game, so MiSTer asked for buttons most games never
+read; the report gave names and `-` (MiSTer's button definition skips a `-`) for 12 titles.  MAME declares buttons the games do not read (`JOY_LSB` comments: "BUTTON2 and
+BUTTON3 in test mode only" on Dharma, Last Fortress, Poitto!, Toride II; "BUTTON3 in test mode only" on Daitoride, Puzzli, Pururun, Sky Alert); the report agreed with MAME's
+counts except on Gun Master and Varia Metal, which MAME gives three.  Checked in MAME 0.289 (`work/btn`, `p.lua`: the inputs pressed in frame windows, the pictures
+compared with a run without them, in play): Gun Master button 1 shoots, 2 jumps, **3 changes nothing** (0 pixels in every frame); Varia Metal 1 shoots, 2 bombs, **3 changes
+the ship's form** (another sprite and pod: so three buttons, the report's `-` was wrong); Mouja (MAME: three) 1 turns the falling pair counter-clockwise, 2 clockwise, 3
+nothing; Blazing Tornado (MAME: four) shows its own HOW TO PLAY with three buttons: "A button produces quick but not very powerful attacks", "B button produces strong
+attacks but leaves you vulnerable", "C button + Directional button produces quick movement" (and holding A or B defends); Lady Killer's own how-to-play says "Press
+button to dive underwater" (the report's "Dive").  `tools/make_mra.py` `BUTTONS`: by MAME's input ports (a set's own entry first: the VG460 Last Fortress sets use Lady
+Killer's ports but one button), the names the games show, else the report's, else "Button n"; the mahjong boards name no buttons (their panel is the keyboard; the
+joystick's Start and Coin still work).  All 47 MRAs regenerated: only their `<buttons>` line changed.  The core's bit layout is unchanged (button 1, 2 = bits 4, 5, Start 6,
+Coin 7, button 3 = 8, family F's fourth = 9).
+
 ## Open points
 
 Toolchain: WSL Ubuntu has Verilator 5.053 (`$HOME/tools/oss-cad-suite`), g++ 9.4, GNU make 4.2.1. Run WSL commands from PowerShell, or from Git Bash with `MSYS_NO_PATHCONV=1`.

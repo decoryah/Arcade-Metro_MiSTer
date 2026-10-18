@@ -124,6 +124,52 @@ def dips(name):
     return (default & 255, default >> 8), lines
 
 
+# The buttons each game uses, by MAME's input ports (GAME()'s input column; a set's own entry first), buttons 1, 2, 3 (family F: 4): None = not used, '-' in the MRA, which
+# MiSTer's button definition skips.  MAME declares buttons the games never read ("BUTTON2 and BUTTON3 in test mode only"); the counts here are what the games use in play,
+# checked in MAME 0.289 where MAME and a player's report disagreed (work/btn): Gun Master's button 3 and Mouja's do nothing in play, Varia Metal's changes the ship's form,
+# Blazing Tornado's own HOW TO PLAY shows three buttons (A quick attacks, B strong attacks, C + direction quick movement).  The names are the games' own words where they
+# show them, else a player's report (October 2026), else Button n.
+BUTTONS = {
+    'dharma':     ('Attack', None, None),
+    'toride2g':   ('Button 1', None, None),
+    'gunmast':    ('Shoot', 'Jump', None),
+    'pururun':    ('Button 1', 'Button 2', None),
+    'daitorid':   ('Button 1', 'Button 2', None),
+    'daitoa':     ('Button 1', 'Button 2', None),
+    'puzzli':     ('Button 1', 'Button 2', None),
+    'karatour':   ('Attack', 'Jump', None),
+    'ladykill':   ('Dive', 'Dive 2', None),
+    'moegonta':   ('Dive', 'Dive 2', None),
+    'pangpoms':   ('Attack', 'Jump', None),
+    'skyalert':   ('Fire', 'Bomb', None),
+    'lastfort':   ('Button 1', None, None),
+    'lastfero':   ('Button 1', None, None),
+    'lastfortg':  ('Button 1', None, None),         # Last Fortress on the VG460 board: MAME gives it Lady Killer's ports, the game uses one button
+    'lastfortj':  ('Button 1', None, None),
+    'poitto':     ('Button 1', None, None),
+    'sankokushi': ('Button 1', 'Button 2', None),
+    'mouja':      ('Rotate Left', 'Rotate Right', None),
+    'dokyusei':   (None, None, None),                # the mahjong panel (keyboard); the joystick's Start and Coin still work
+    'gakusai':    (None, None, None),
+    'vmetal':     ('Shoot', 'Bomb', 'Change'),
+    'gstrik2':    ('Shoot', 'Long Pass', 'Short Pass', None),
+    'blzntrnd':   ('Light Attack', 'Strong Attack', 'Dash', None),
+    'msgogo':     ('Shoot', 'Rotate', None),
+    'balcube':    ('Action', None, None),
+    'bangball':   ('Attack', None, None),
+    'batlbubl':   ('Attack', None, None),
+}
+
+
+def buttons(name, g):
+    """the MRA's <buttons>: names in the joystick's bit order (button 1, button 2, start, coin, button 3[, button 4]: Metro.sv) and MiSTer's default keys"""
+    b = BUTTONS.get(name) or BUTTONS[g['input']]
+    n = ['-' if x is None else x for x in b]
+    names = [n[0], n[1], 'Start', 'Coin'] + n[2:]
+    keys = ['A', 'B', 'Start', 'Select', 'X', 'Y'][:len(names)]
+    return '    <buttons names="%s" default="%s"/>' % (','.join(names), ','.join(keys))
+
+
 def mra(name, roms, games):
     g = games[name]
     zips = [name + '.zip'] + ([g['parent'] + '.zip'] if g['parent'] else [])
@@ -165,10 +211,7 @@ def mra(name, roms, games):
     L.append('    </switches>')
     L.append('')
     # the names fix the joystick bit layout MiSTer sends (bit 4 first): the core reads button 1/2 = bits 4/5, start = 6, coin = 7, button 3 = 8 (Metro.sv)
-    if g['machine'] in T.F_MACHINES:                       # family F reads a fourth button (IN0 bits 7 / 15)
-        L.append('    <buttons names="Button 1,Button 2,Start,Coin,Button 3,Button 4" default="A,B,Start,Select,X,Y"/>')
-    else:
-        L.append('    <buttons names="Button 1,Button 2,Start,Coin,Button 3" default="A,B,Start,Select,X"/>')
+    L.append(buttons(name, g))                              # family F has a fourth position (IN0 bits 7 / 15), unused by its two games
     L.append('')
     L.append('    <rom index="0" zip="%s" md5="None" address="0x32000000">' % '|'.join(zips))
     # the configuration block is first: the loader needs it before the graphics arrive (tools/metro_rom.py)
