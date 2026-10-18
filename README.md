@@ -195,8 +195,6 @@ of the games' own writes. `docs/status.md` has the measured results, the bugs fo
 
 * Daitoride (the plain version, `metro`): single torn scanlines on the rising rocks (the YMF278B version on `metrod64` does not show them).
 * The Karate Tournament: rectangles in explosions were reported on an earlier build and not re-checked.
-* Sankokushi (`metro`): while a picture slides in, the game blits ~10,000 words a frame, more than the log holds: those frames are drawn live as before (replay: 1 of 36
-  pictures of the intro differs from MAME's).
 * The family C boards' 68000 gets its program through the SDRAM cache: ROM reads wait 2 clocks on average (99.9 % within 8 clocks in simulation), and a loop of Gakuensai's runs at
   MAME's speed within 0.3 %. (An earlier note of "a quarter slower" counted bus cycles per frame, which is the bus utilisation, not the speed.)
 
