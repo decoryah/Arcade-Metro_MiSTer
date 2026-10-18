@@ -190,6 +190,8 @@ def mra(name, roms, games):
     if pos < total:
         L.append('        <part repeat="0x%X">00</part>' % (total - pos))
     L.append('    </rom>')
+    if g['machine'] in ('dokyusp', 'gakusai', 'gakusai2'):    # the 93C46 (the settings): Main_MiSTer keeps it on the SD card, Metro.sv NV_INDEX (MAME's nvram file: 128 bytes)
+        L.append('    <nvram index="4" size="128"/>')
     L.append('</misterromdescription>')
     return '\n'.join(L) + '\n'
 

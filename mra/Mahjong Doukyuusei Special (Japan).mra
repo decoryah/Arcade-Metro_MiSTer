@@ -62,4 +62,5 @@
         <!-- oki -->
         <part name="7.bin" crc="763985e1"/>
     </rom>
+    <nvram index="4" size="128"/>
 </misterromdescription>

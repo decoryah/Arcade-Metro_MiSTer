@@ -394,7 +394,7 @@ module tb_metro_sys_top (
         .rom_req(rom_req), .rom_addr(rom_addr), .rom_ack(rom_ack), .rom_data(rom_data),
         .gfx_req(gfx_req), .gfx_addr(gfx_addr), .gfx_len(gfx_len), .gfx_data(gfx_data), .gfx_valid(gfx_valid), .gfx_size(gfx_size_i),
         .in0(in0_x), .in1(in1_x), .dsw0(dsw0), .dsw1(dsw1), .in2(in2_x), .o_roz_ctrl(roz_ctrl_t), .o_sr3_req(sr3_req), .o_sr3_we(sr3_we), .o_sr3_addr(sr3_addr), .o_sr3_wdata(sr3_wdata), .o_sr3_be(sr3_be), .i_sr3_rdata(sr3_rdata), .i_sr3_ack(sr3_ack),
-        .i_mj(mj_x), .i_ee_ld_wr(ee_ld_wr), .i_ee_ld_addr(ee_ld_addr), .i_ee_ld_data(ee_ld_data), .d_ym_wr(tb_ymw), .d_ym_a0(tb_yma0), .d_oki_wr(tb_okiw), .d_data(tb_dd), .d_oki_status(oki_status_t), .oki_a(oki_a_t), .oki_a22(oki_a22_t), .fam_d_o(),
+        .i_mj(mj_x), .i_ee_ld_wr(ee_ld_wr), .i_ee_ld_addr(ee_ld_addr), .i_ee_ld_data(ee_ld_data), .i_ee_nv_wr(1'b0), .i_ee_nv_addr(7'd0), .i_ee_nv_data(8'd0), .i_ee_nv_raddr(7'd0), .o_ee_nv_rdata(), .o_ee_written(), .d_ym_wr(tb_ymw), .d_ym_a0(tb_yma0), .d_oki_wr(tb_okiw), .d_data(tb_dd), .d_oki_status(oki_status_t), .oki_a(oki_a_t), .oki_a22(oki_a22_t), .fam_d_o(),
         .o_es_wr(es_wr_t), .o_es_rst(es_rst_t), .o_es_a(es_a_t), .o_es_d(es_d_t), .o_es_bank(es_bank_t), .i_es_irq(es_irq_t),
         .snd_cmd(snd_cmd), .snd_cmd_wr(snd_cmd_wr), .snd_busy(snd_busy),
         .hs(hs), .vs(vs_m), .de(de_m), .hblank(hblank), .vblank(vblank), .ce_pix(ce_pix_m), .r5(r5_m), .g5(g5_m), .b5(b5_m),

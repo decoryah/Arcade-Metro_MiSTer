@@ -7,7 +7,8 @@
 //   11 ERASE  the word becomes FFFF (needs the write enable)
 //   00 with address bits 5:4 = 11 EWEN (write enable), 00 EWDS (write disable), 10 ERAL (erase all), 01 WRAL (write all, 16 data bits follow)
 // The write cycle is taken as instantaneous (DO = 1, ready, afterwards).  The chip powers up write-disabled.  CS low resets the state machine.
-// The contents at power-up come from the image: the loader sends the 128 bytes (big-endian words) of MAME's "eeprom" region (i_ld_*); they are not saved.
+// The contents at power-up come from the image: the loader sends the 128 bytes (big-endian words) of MAME's "eeprom" region (i_ld_*).  The saved file (the MRA's <nvram>,
+// Metro.sv) is MAME's nvram/<set>/eeprom: 128 bytes, little-endian words (i_nv_* writes it in, o_nv_rdata reads it back for the save, o_written marks a write of the game).
 `default_nettype none
 module metro_eeprom (
     input  logic        clk,
@@ -17,7 +18,13 @@ module metro_eeprom (
     output logic        o_do,
     input  logic        i_ld_wr,          // initial contents, one byte per clock: byte address 0..127, big endian words
     input  logic [6:0]  i_ld_addr,
-    input  logic [7:0]  i_ld_data
+    input  logic [7:0]  i_ld_data,
+    input  logic        i_nv_wr,          // the saved file, one byte per clock: byte address 0..127, little-endian words (MAME's nvram file)
+    input  logic [6:0]  i_nv_addr,
+    input  logic [7:0]  i_nv_data,
+    input  logic [6:0]  i_nv_raddr,       // the save's read: the byte of the file at this address, one clock later
+    output logic [7:0]  o_nv_rdata,
+    output logic        o_written         // one clock: the game wrote or erased (a word or all of them)
 );
     logic [15:0] mem [0:63];
     initial for (int i = 0; i < 64; i++) mem[i] = 16'hFFFF;
@@ -34,10 +41,17 @@ module metro_eeprom (
 
     assign o_do = dout;
 
+    always_ff @(posedge clk) o_nv_rdata <= i_nv_raddr[0] ? mem[i_nv_raddr[6:1]][15:8] : mem[i_nv_raddr[6:1]][7:0];
+
     always_ff @(posedge clk) begin
+        o_written <= 1'b0;
         if (i_ld_wr) begin
             if (!i_ld_addr[0]) mem[i_ld_addr[6:1]][15:8] <= i_ld_data;
             else               mem[i_ld_addr[6:1]][7:0]  <= i_ld_data;
+        end
+        if (i_nv_wr) begin
+            if (i_nv_addr[0]) mem[i_nv_addr[6:1]][15:8] <= i_nv_data;
+            else              mem[i_nv_addr[6:1]][7:0]  <= i_nv_data;
         end
         if (!i_cs) begin
             st   <= S_START;
@@ -54,12 +68,12 @@ module metro_eeprom (
                         case (cmd_n[7:6])
                             2'b10: begin sh <= mem[cmd_n[5:0]]; shcnt <= '0; dout <= 1'b0; st <= S_READ; end
                             2'b01: begin sh <= '0; shcnt <= '0; wall <= 1'b0; st <= S_WDATA; end
-                            2'b11: begin if (wen) mem[cmd_n[5:0]] <= 16'hFFFF; dout <= 1'b1; st <= S_DONE; end
+                            2'b11: begin if (wen) begin mem[cmd_n[5:0]] <= 16'hFFFF; o_written <= 1'b1; end dout <= 1'b1; st <= S_DONE; end
                             default: begin
                                 case (cmd_n[5:4])
                                     2'b11: wen <= 1'b1;
                                     2'b00: wen <= 1'b0;
-                                    2'b10: if (wen) for (int i = 0; i < 64; i++) mem[i] <= 16'hFFFF;
+                                    2'b10: if (wen) begin for (int i = 0; i < 64; i++) mem[i] <= 16'hFFFF; o_written <= 1'b1; end
                                     default: begin sh <= '0; shcnt <= '0; wall <= 1'b1; st <= S_WDATA; end      // WRAL
                                 endcase
                                 if (cmd_n[5:4] != 2'b01) begin dout <= 1'b1; st <= S_DONE; end
@@ -85,6 +99,7 @@ module metro_eeprom (
                         if (wen) begin
                             if (wall) for (int i = 0; i < 64; i++) mem[i] <= {sh[14:0], i_di};
                             else      mem[addr] <= {sh[14:0], i_di};
+                            o_written <= 1'b1;
                         end
                         dout <= 1'b1;
                         st   <= S_DONE;
@@ -95,6 +110,6 @@ module metro_eeprom (
         end
     end
 
-    initial begin st = S_START; cnt = 0; dout = 1'b1; wen = 1'b0; wall = 1'b0; end
+    initial begin st = S_START; cnt = 0; dout = 1'b1; wen = 1'b0; wall = 1'b0; o_written = 1'b0; end
 endmodule
 `default_nettype wire

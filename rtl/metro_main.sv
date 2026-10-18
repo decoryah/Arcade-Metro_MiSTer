@@ -68,6 +68,12 @@ module metro_main #(
     input  logic        i_ee_ld_wr,                  // Doukyuusei Special's EEPROM: its initial contents from the loader
     input  logic [6:0]  i_ee_ld_addr,
     input  logic [7:0]  i_ee_ld_data,
+    input  logic        i_ee_nv_wr,                  // the EEPROM's saved file (the MRA's <nvram>, MAME's nvram file: little-endian words): written in, read back for the save
+    input  logic [6:0]  i_ee_nv_addr,
+    input  logic [7:0]  i_ee_nv_data,
+    input  logic [6:0]  i_ee_nv_raddr,
+    output logic [7:0]  o_ee_nv_rdata,
+    output logic        o_ee_written,                // one clock: the game wrote the EEPROM
     output logic        d_ym_wr, d_ym_a0, d_oki_wr,
     // family C (YMF278B on the 68000 bus): a byte written to its port o_ymf_a (0 .. 5), the status read, its status and interrupt
     output logic        o_ymf_wr, o_ymf_rd,
@@ -173,7 +179,7 @@ module metro_main #(
     //   1  soundstatus (byte 1: 1 = sound CPU idle) / IN0 coins / P1 joystick / P2 joystick / DSW0 / DSW1 / IN3        at words 0 / 2 / 3 / 4 / 5 / 6 / 7     (Pang Pom's, Sky Alert, Last Fortress)
     //   2  soundstatus / IN0 = P2 joystick / IN1 coins / DSW0 (game options) / DSW1 (coinage, flip) / IN2 = P1 joystick  at words 0 / 1 / 2 / 3 / 5 / 6   (Karate Tournament, Lady Killer, Last Fortress VG460)
     logic       rom512_r, wide_r, tall_r, i4100_r, rom1m_r, vm_r, f_r, rom2m_r;
-    logic       bt_r, early_r, ext5_r, scan_r, tdx_r, tdx1_r;                // the board's flags for the video chip and the ROZ layer, registered: static after the load, kept off the fit's long path (cfg -> compare -> 2048 loads)
+    logic       bt_r, early_r, ext5_r, scan_r, h380_r, tdx_r, tdx1_r;                // the board's flags for the video chip and the ROZ layer, registered: static after the load, kept off the fit's long path (cfg -> compare -> 2048 loads)
     logic [3:0] n_ram_r;
     logic [4:0] vdp5_r;                 // address bits 23..19 of the video chip window
     logic [1:0] q_io_r, io_cls_r;
@@ -228,6 +234,7 @@ module metro_main #(
         bt_r    <= (i_board == 8'd18);
         early_r <= (i_board == 8'd5 || i_board == 8'd6);
         scan_r  <= (i_board == 8'd5 || i_board == 8'd6 || i_board == 8'd25 || i_board == 8'd26);
+        h380_r  <= (i_board == 8'd25 || i_board == 8'd26);              // Bang Bang Ball, Battle Bubble: MAME runs them at 60 Hz ("doesn't like 58.2 Hz"), 263 lines of 380 dots here
         ext5_r  <= (i_board == 8'd7 || i_board == 8'd11 || i_board == 8'd13 || i_board == 8'd18 || i_board == 8'd19);
         tdx_r   <= (i_board == 8'd4 || i_board == 8'd5 || i_board == 8'd6 || (i_board >= 8'd22 && i_board <= 8'd26));
         tdx1_r  <= (i_board == 8'd19);
@@ -318,7 +325,7 @@ module metro_main #(
         .i_gfx_size(gfx_size),
         .i_compat60(1'b0), .i_win_mame(win_mame), .i_flip_force(flip_force), .i_pal_latch(pal_latch), .i_spr_early(early_r), .i_tick_slow(msgogo_r), .i_tmap_dx(tdx_r ? 4'd2 : 4'd0), .i_tmap_dx1(tdx1_r ? 4'd8 : 4'd0),
         .i_roz_en(f_r), .i_vlog_en(!i_vlog_off), .i_roz_prio(i_roz_prio), .i_no_hold(i_no_hold), .o_roz_frame(rz_frame), .o_roz_used(rz_used), .i_roz_done(rz_done), .o_roz_bank(rz_bank), .o_roz_x(rz_x), .i_roz_pen(rz_pen), .i_roz_op(rz_op),
-        .i_roz_req(rz_rq_req), .i_roz_addr(rz_rq_addr), .i_roz_len(rz_rq_len), .o_roz_wr(rz_wr), .o_roz_idx(rz_idx), .o_roz_data(rz_data), .o_roz_ack(rz_ack), .i_w304(vm_r || f_r), .i_w384(dsp_r), .i_wide(wide_r), .i_tall(tall_r), .i_i4100(i4100_r), .i_ext5(ext5_r), .i_fsync(fsync_r), .i_scan_irq(scan_r), .i_irq_line_mask(8'hFF),
+        .i_roz_req(rz_rq_req), .i_roz_addr(rz_rq_addr), .i_roz_len(rz_rq_len), .o_roz_wr(rz_wr), .o_roz_idx(rz_idx), .o_roz_data(rz_data), .o_roz_ack(rz_ack), .i_w304(vm_r || f_r), .i_w384(dsp_r), .i_wide(wide_r), .i_tall(tall_r), .i_i4100(i4100_r), .i_ext5(ext5_r), .i_fsync(fsync_r), .i_h380(h380_r), .i_scan_irq(scan_r), .i_irq_line_mask(8'hFF),
         .i_i4300(fam_d_r), .i_vbl_bit(3'd1), .i_blit_bit(mouja_r ? 3'd2 : 3'd3), .i_irq0_pulse(tmr_fire), .i_vec_idx(eab[3:1]), .o_irq_lvl(vdp_lvl), .o_vec(vdp_vec),
         .o_dbg_vdp_write(), .o_dbg_line_start(), .o_dbg_rnd_done(), .o_dbg_lb_nonzero(), .o_dbg_palw(), .o_dbg_ovr(vdp_ovr),
         .o_dbg_rend_sx2_0(), .o_dbg_rend_sx2_1(), .o_dbg_rend_sx2_2(),
@@ -807,7 +814,8 @@ module metro_main #(
     logic ee_cs = 1'b0, ee_di = 1'b0, ee_clk = 1'b0, ee_clkl = 1'b0;                    // ee_clkl: the level of Gakuensai's clock bit (the chip clocks on its rising edge)
     wire  ee_do;
     metro_eeprom u_eeprom (.clk(clk), .i_cs(ee_cs), .i_clk(ee_clk), .i_di(ee_di), .o_do(ee_do),
-                           .i_ld_wr(i_ee_ld_wr), .i_ld_addr(i_ee_ld_addr), .i_ld_data(i_ee_ld_data));
+                           .i_ld_wr(i_ee_ld_wr), .i_ld_addr(i_ee_ld_addr), .i_ld_data(i_ee_ld_data),
+                           .i_nv_wr(i_ee_nv_wr), .i_nv_addr(i_ee_nv_addr), .i_nv_data(i_ee_nv_data), .i_nv_raddr(i_ee_nv_raddr), .o_nv_rdata(o_ee_nv_rdata), .o_written(o_ee_written));
 
     // Varia Metal's control register (0x200001): bit 4 the ES8712 sample ROM bank, bit 6 the gate of its interrupt (clearing it drops the level 3 request; the line follows the ES8712's
     // output only while the gate is open, and only when the output changes, as vmetal_state::es8712_irq does)

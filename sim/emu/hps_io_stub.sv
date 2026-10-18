@@ -73,7 +73,8 @@ module hps_io #(parameter CONF_STR = "", parameter int WIDE = 0, parameter int P
     assign joystick_1 = r_joy1;
     assign joystick_2 = r_joy2;
     assign joystick_3 = r_joy3;
-    assign ps2_key = 11'd0;
+    reg  [10:0] r_ps2      /*verilator public_flat_rw*/ = 11'd0;     // the PS/2 key event: bit 10 toggles per event, bit 9 = pressed, 8:0 the code
+    assign ps2_key = r_ps2;
     /* verilator lint_off UNUSEDSIGNAL */
     wire unused = ^{HPS_BUS, EXT_BUS, status_menumask, video_rotated, gamma_bus, ioctl_upload_index};
     /* verilator lint_on UNUSEDSIGNAL */

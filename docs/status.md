@@ -1370,6 +1370,86 @@ Seeds of 20261018a: `metro` 4 -0.083 (the log's apply -> tile RAM write enable),
 
 **Hardware (the user, 2026-10-18, 20261018a): "Fixes work"** (Mouse Shooter GoGo's theatre changes, Sankokushi's sliding pictures).
 
+## Releases 20261018b / 20261018c: the EEPROM saved, the test switch, Bang Bang Ball and Battle Bubble at 60 Hz (2026-10-18; `metro` and `metrod64`; 20261018c confirmed on the boards)
+
+**EEPROM save.**  Mahjong Doukyuusei Special (board 16, `metro`) and Mahjong Gakuensai 1 / 2 (boards 20 / 21, `metrod64`) keep their settings in a 93C46 (`rtl/metro_eeprom.sv`); the
+core loaded it at every start from the image (bytes 0x100..0x17F: MAME's `eeprom` region for Doukyuusei Special, zeros for Gakuensai) and never saved it.  Now the MRAs of the
+three sets (four files) carry `<nvram index="4" size="128"/>` (`tools/make_mra.py`), and `Metro.sv` does what the PGM2 core does with its battery SRAM:
+
+* Main_MiSTer sends the saved file after the ROMs as a download with index 4 (`nv_dl`; the machine is held in reset meanwhile).  With the fast load the file can come while
+  the image is still being replayed: once it has come (`nv_loaded`, cleared by the next ROM download) the image's default bytes are not written.  No file: the image's contents
+  as before.
+* The core asks for an upload (`ioctl_upload_req`, index 4) when the OSD opens after the game has written the EEPROM (`o_written` of `metro_eeprom`: a write, an erase, ERAL /
+  WRAL, `nv_dirty`), OSD **Autosave EEPROM** (`status[12]`, On by default), and on **Save EEPROM** (`status[13]`); both are shown only on the three boards (`status_menumask`
+  bit 5).  Main_MiSTer reads the 128 bytes back (`ioctl_din` = `o_nv_rdata`, the byte at `ioctl_addr`, one clock later).
+* The file is MAME's `nvram/<set>/eeprom`: 128 bytes, **little-endian words** (MAME's region is big-endian, its nvram file is not: `eeprom-dokyusp.bin` starts `00 e0`, the
+  file MAME writes from it `e0 00`), so a MAME save can be copied over.
+* MAME (`work/ee`): Gakuensai 1 and 2 accept neither an all-FF nor an all-zero EEPROM, initialise it in frames 2 - 44 after reset (`tap.lua`: the port's accesses per frame) and
+  end with the same 128 bytes from both starts, so the core's zero default (the image) and MAME's FF default give the same settings.
+
+**Checks** (the top-level bench `sim/emu`: `Metro.sv` with the hps_io stand-in; `tb_emu.cpp` got `NVIN` (the file sent as index 4: after the image, or with `FAST=1`
+during the replay), `NVOUT` (the OSD opens, or `NVSAVE=1` Save EEPROM; an upload is answered as Main_MiSTer does), `NVEXPECT`; `OSD_STATUS` is a port of `tb_emu_top.sv`):
+
+* Gakuensai (`metrod64`, fast load), no file: the game initialises the EEPROM, the OSD opens, 1 upload request, the 128 bytes read back are **byte for byte MAME's file**
+  of a blank start (`work/ee/t1.bin`); the dirty flag clears with the upload.
+* Gakuensai, MAME's file sent during the replay: the game finds it valid and writes nothing (dirty 0, no request when the OSD opens), so the file survived the replay and is
+  what the game reads.  Streamed load, the file after the image, Save EEPROM: 1 request, the bytes back = the file.
+* Doukyuusei Special (`metro`, fast load), MAME's file during the replay, Save: the bytes back = the file.  No file, Save: the image's region (big-endian) comes back as
+  MAME's file (little-endian), byte for byte.
+
+**60 Hz for Bang Bang Ball and Battle Bubble.**  MAME runs `bangball` / `batlbubl` at 60 Hz (`set_refresh_hz(60)`, "doesn't like 58.2 Hz"; the screen stays 392 x 263, its
+scanline timer gives the line interrupts), the core ran them at the other boards' 58.23 Hz: the game ran 3 % slower than MAME's and the display at another rate.  The
+video chip now takes `i_h380` (boards 25 / 26, `h380_r` in `rtl/metro_main.sv`): 380 dots a line instead of 392 at the same 6.0 MHz dot clock, 263 lines, **60.03 Hz**
+(15.79 kHz; MAME's line is 63.37 us, the core's 63.33 us, the 68000 gets 1,013 of its 16 MHz cycles a line as in MAME).  The line's last dot is a register (`h_last`, static
+like `h_vis`); the horizontal sync pulse is 28 dots from dot 328 (8 dots after the picture) and ends 24 dots before the next line as in the 392-dot line, so the picture
+sits where the other games' does.  Every other board: `h_last` = 391 as before.
+
+**Checks** (whole machine, `run_sys.sh` with the SDRAM path and the 64 MB D build, coin 120 / start 220 as MAME's dumps `work/gk/bb.*`, `bl.*`): Bang Bang Ball's core
+frame 300 is MAME's frame 290 in every memory and register, frame 500 MAME's 490 but 2 sprite words; Battle Bubble frame 150 equal to MAME's, 300 / 500 as Bang Bang Ball.
+The 10 frames are not the frame rate (the old 58.2 Hz core's frame 300 is MAME's 292): both advance the game once a frame, and they come from the boot.  The game's first
+65,536-step loop (0x904: `tst.b $d00006`, the inputs, then five `move.w d2,$e78890`) takes MAME 118 cycles a step and the core 164 (the video chip's write ~40 clocks more
+than MAME's zero-wait access, the input read ~76): the VDP write streams (`tools/lua/vdpwr.lua`, its path pattern's escape fixed; the bench's `+VDPWLOG`; `work/ee/bbm/wstream.py`)
+are identical for the loop's 330,669 writes, which end at MAME's frame 29 and the core's 41.  So the core starts the game 0.2 s later and stays 10 - 12 frames behind MAME's
+frame numbers.  The earlier note in this file that put the frame 300 differences down to 58.2 against 60 Hz was wrong; they were this offset.
+
+**Regression** (`work/gkrp/run_reg3.sh`, whole machine, frames 100 / 250, picture + VDP memories + registers + sprite list, against the 20261018a tree's results):
+
+```
+64 MB (metrod64):  balcube, daitorida, gakusai, msgogo identical;  bangball, batlbubl: frame 100 identical, frame 250 differs (60 Hz)
+32 MB (metro):     dokyusp, dharma, toride2g, pururun, daitorid, puzzli, karatour, pangpoms, skyalert, lastfort, poitto, 3kokushi, dokyusei, mouja, gunmast, ladykill identical
+```
+
+**Timing.**  The first fits (seeds 5 / 4) put `metrod64` at -0.466 ns: `pixdiv` -> `line_start` -> the enables of `r_window_q` (the line-start compare now against the
+`h_last` register instead of a constant).  The compare is registered (`h_at_last`: `hcnt` holds for 16 clocks, so it is ready at the pixel enable; the same behaviour:
+Bang Bang Ball, Bal Cube, Dharma, Doukyuusei Special at frame 100 byte for byte the run before it, `work/gkrp/run_eqk.sh`).  Fits (Quartus 17, build id `261018b`):
+
+| Core file | Seed | Setup (96 MHz) | Hold | ALMs | RAM blocks |
+|---|---|---|---|---|---|
+| `metro_20261018b` | 5 | **+0.286 ns** (HDMI clock +0.576) | +0.120 ns | 32,709 (78 %) | 548 / 553 |
+| `metrod64_20261018b` | 2 | **+0.157 ns** (HDMI clock +0.339) | +0.064 ns | 35,128 (84 %) | 549 / 553 |
+| `metrof64` | (unchanged: `metrof64_20261014c.rbf`) | | | | |
+
+`metrod64` seed 4 -0.196 ns.  Package `dist/Metro_MiSTer_20261018b.zip`, notes `dist/RELEASE_NOTES_20261018b.md` (local; sent, not tested, replaced by 20261018c).
+
+**The test switch (20261018c).**  The owner asked whether these games should have DIP switches: they have none (metro.cpp: "Same as dokyusei, without the DSWs (these games
+have an EEPROM)"), their settings are made in the game's test mode, and that is entered with the test switch (IN0 bit 3, `PORT_SERVICE_NO_TOGGLE`, MAME's F2), which the
+core never drove (keyboard 9 is the service coin, bit 2): 20261018b saved an EEPROM nobody could change.  `Metro.sv`: F2 (PS/2 0x06, `key_test`) is IN0 bit 3 of the
+I4300 boards with the mahjong panel (Doukyuusei, Doukyuusei Special, Gakuensai 1 / 2: `dk_in0`) and IN1 bit 7 of Mouja (`mo_in1`).  Blazing Tornado / Grand Striker 2 also
+have one (IN2 bit 1) besides their Service Mode DIP: not done, `metrof64` is not rebuilt.  MAME (`work/ee/test`, `t.lua`: the "Service Mode" field held for 10 frames):
+Gakuensai starts its test mode at once, in game or held at power-on ("PROGRAM ROM" ... "CG ROM", the ROM check takes ~15 s, then WORK RAM / VDP RAM / EEP ROM OK and the menu;
+Ron = next page, N = previous); Doukyuusei Special goes white and shows its KEY TEST grid ~10 s later; Mouja's switch acts only after its power-on self-test (frame ~600),
+then TEST MODE at once.  Top-level bench (`tb_emu.cpp` `TESTKEY=<f0>,<f1>`: F2 through the hps_io stand-in's `ps2_key`): Gakuensai with F2 at frames 60 - 70 after the load
+shows "PROGRAM ROM" at frame 100 (without: the Make Software logo), Doukyuusei Special the white screen (without: the logo); Mouja's run (F2 after its self-test,
+940 frames) was stopped when the board answered.  **Hardware (the owner, 2026-10-18, 20261018c): F2 works as the test switch on Mahjong Doukyuusei, Doukyuusei Special,
+Mouja and Gakuensai 1 / 2; the settings are kept over a power-off; Bang Bang Ball / Battle Bubble at 60 Hz good.**
+
+| Core file | Seed | Setup (96 MHz) | Hold | ALMs | RAM blocks |
+|---|---|---|---|---|---|
+| `metro_20261018c` | 5 | **+0.199 ns** (HDMI clock +0.442) | +0.024 ns | 32,904 (79 %) | 548 / 553 |
+| `metrod64_20261018c` | 4 | **+0.312 ns** (HDMI clock +0.148) | +0.076 ns | 35,027 (84 %) | 549 / 553 |
+
+`metrod64` seed 2 -0.084 ns.  Package `dist/Metro_MiSTer_20261018c.zip`, notes `dist/RELEASE_NOTES_20261018c.md` (local).
+
 ## Open points
 
 Toolchain: WSL Ubuntu has Verilator 5.053 (`$HOME/tools/oss-cad-suite`), g++ 9.4, GNU make 4.2.1. Run WSL commands from PowerShell, or from Git Bash with `MSYS_NO_PATHCONV=1`.
@@ -1378,12 +1458,13 @@ Toolchain: WSL Ubuntu has Verilator 5.053 (`$HOME/tools/oss-cad-suite`), g++ 9.4
   show them; the frame-synchronous tile RAM of family F was **not** ported: its cost in logic and timing margin, a frame more latency and the blitter's start held for the log
   outweigh one game's few scanlines); Mahjong Doukyuusei's bright frame / intro flashes (fixed in 20261014b / d, confirmed on the board);
   The Karate Tournament's explosion rectangles (not re-checked since 20261010);
-  Mouse Shooter GoGo's small quirks (reported 2026-10-12; its theatre changes were fixed in 20261018a, confirmed on the board; the flashing lines of busy scenes were not re-checked); Sankokushi's sliding pictures (fixed in 20261018a, confirmed on the board; replays 1 of 36 pictures off).  Mahjong Gakuensai 1 / 2's glitches were the blitter's groups,
+  Mouse Shooter GoGo's quirks of video `IMG_8095` (2026-10-13: the falling cat's flashing lines and the title scrolling in are MAME's own, the owner checked them in MAME on 2026-10-14; the theatre's scene changes were fixed in 20261018a, confirmed on the board: nothing open); Sankokushi's sliding pictures (fixed in 20261018a, confirmed on the board; replays 1 of 36 pictures off).  Mahjong Gakuensai 1 / 2's glitches were the blitter's groups,
   fixed in 20261014a (confirmed on the board).
-* **Not done:** Mahjong Gakuensai's EEPROM is not saved; Bang Bang Ball / Battle Bubble run at 58.2 Hz (MAME 60 Hz: they use Puzzli's scanline interrupt model, the core's
-  raster is the Dharma / Toride II one); the family C boards' 68000 program is read through the SDRAM cache: ROM reads wait 2 clocks on average (the "quarter slower"
+* **Not done:** the family C boards' 68000 program is read through the SDRAM cache: ROM reads wait 2 clocks on average (the "quarter slower"
   of earlier notes was bus utilisation, not speed); Puzzlet (H8/3007 CPU: MAME 0.289 does not run it either), Metabee Shot (its Z8 protection MCU has no dump) and
   Poitto! revision C (one ROM has no known good dump) cannot be done.
+* **68000 speed in VDP-heavy loops:** a write to the video chip takes the core's 68000 ~40 clocks (96 MHz) more than MAME's zero-wait access, a family C input read ~76:
+  Bang Bang Ball's 65,536-step boot loop ends 12 frames later than in MAME (0.2 s; section "Releases 20261018b / 20261018c").  The games' frame-locked flow is not affected.
 * **Build variants:** one tree, three core files (README "Three core files"). A fit of everything in one core needed 48,811 ALMs (116 % of the device, `build_all`, 2026-10-12): the
   split is a resource limit, not a choice.
 * **Hardware test switches:** the six OSD switches of the development builds are behind `VERILOG_MACRO METRO_DEBUG` (`Metro.sv`); a release build has them at the tested settings.

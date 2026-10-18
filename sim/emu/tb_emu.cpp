@@ -5,7 +5,11 @@
 //     reports the clocks it took,
 //   * sets OSD options (SCALE = status[34:32], AR = status[122:121]), runs frames and captures the picture as the scaler gets it (VGA_*),
 //   * checks the size the core asks the scaler for (VIDEO_ARX / VIDEO_ARY) against the framework's integer scaling rule,
-//   * dumps the SDRAM chip's first <image length> bytes (+SDRDUMP) so a streamed and a fast load can be compared byte for byte.
+//   * dumps the SDRAM chip's first <image length> bytes (+SDRDUMP) so a streamed and a fast load can be compared byte for byte,
+//   * the EEPROM's file (the MRA's <nvram index="4" size="128"/>): NVIN=<file> is sent as Main_MiSTer sends it, a download with index 4 after the ROM (with FAST=1 while the
+//     image is still being replayed); after the frames the OSD is opened (NVSAVE=1: Save EEPROM, status[13], instead) and, if the core asks for an upload, the 128 bytes are
+//     read back as Main_MiSTer reads them and written to NVOUT=<file> (NVEXPECT=<n>: the number of upload requests expected),
+//   * TESTKEY=<f0>,<f1>: the keyboard's F2 (the test switch of the I4300 boards) held from frame f0 to frame f1 after the load.
 //
 //   tb_emu <image> <frames after load> <out-prefix>
 #include "Vtb_emu_top.h"
@@ -71,6 +75,14 @@ static void download(int index, const unsigned char *data, long n, int stride) {
     run(8);
 }
 
+// the EEPROM's file as Main_MiSTer sends it after the ROMs: a download with index 4
+static void send_nv(const char *path, int stride) {
+    unsigned char b[128]; FILE *f = fopen(path, "rb");
+    if (!f || fread(b, 1, 128, f) != 128) { fprintf(stderr, "cannot read 128 bytes of %s\n", path); exit(1); }
+    fclose(f);
+    download(4, b, 128, stride);
+}
+
 static void write_ppm(const char *path, const std::vector<unsigned> &px, int w, int h) {
     FILE *f = fopen(path, "wb"); if (!f) return;
     fprintf(f, "P6\n%d %d\n255\n", w, h);
@@ -97,6 +109,7 @@ int main(int argc, char **argv) {
     dut->HDMI_WIDTH  = getenv("HW") ? atoi(getenv("HW")) : 1920;
     dut->HDMI_HEIGHT = getenv("HH") ? atoi(getenv("HH")) : 1080;
     dut->dump_go = 0;
+    dut->OSD_STATUS = 0;
     dut->RESET = 1; run(40); dut->RESET = 0;
     if (getenv("SCALE")) field(32, 3, atoi(getenv("SCALE")));
     if (getenv("AR")) field(121, 2, atoi(getenv("AR")));
@@ -130,6 +143,7 @@ int main(int argc, char **argv) {
         HPSV(r_index) = 0; HPSV(r_addr) = IMG_LEN; HPSV(r_download) = 1; run(64);
         HPSV(r_addr) = IMG_LEN + 1; HPSV(r_download) = 0;
         unsigned long long t1 = cycles; long guard = 0;
+        if (getenv("NVIN")) { run(2000); send_nv(getenv("NVIN"), stride); printf("nv: file sent during the replay (fast_dl %d)\n", (int)dut->rootp->tb_emu_top__DOT__u_emu__DOT__fast_dl); }
         const long GUARD = 600000000;
         while (dut->rootp->tb_emu_top__DOT__u_emu__DOT__fast_dl && guard++ < GUARD) run(1);
         printf("fast load: the image replayed from the DDR3 in %llu clocks (%.3f s at 96 MHz)\n", cycles - t1, (cycles - t1) / 96e6);
@@ -138,6 +152,7 @@ int main(int argc, char **argv) {
     } else {
         download(0, img.data(), IMG_LEN, stride);
         printf("image streamed in %llu clocks (%.3f s at 96 MHz, %d clocks a byte)\n", cycles - t0, (cycles - t0) / 96e6, stride);
+        if (getenv("NVIN")) { send_nv(getenv("NVIN"), stride); printf("nv: file sent after the image\n"); }
     }
     run(20000);                                  // the last words leave the loader's FIFO
 
@@ -147,10 +162,43 @@ int main(int argc, char **argv) {
 
     int start_frames = frames_done;
     unsigned long long guard = 0;
-    while (frames_done < start_frames + frames && guard++ < 4000000000ull) tick(), video_watch();
+    int tk0 = -1, tk1 = -1;
+    if (getenv("TESTKEY")) sscanf(getenv("TESTKEY"), "%d,%d", &tk0, &tk1);
+    bool tk_on = false;
+    while (frames_done < start_frames + frames && guard++ < 4000000000ull) {
+        tick(), video_watch();
+        const int fr = frames_done - start_frames;
+        if (tk0 >= 0 && !tk_on && fr >= tk0 && fr < tk1) {         // F2 pressed: a new event (bit 10 toggles), bit 9 set, code 0x06
+            HPSV(r_ps2) = ((~HPSV(r_ps2)) & 0x400) | 0x200 | 0x006; tk_on = true; printf("F2 pressed at frame %d\n", fr);
+        } else if (tk_on && fr >= tk1) {
+            HPSV(r_ps2) = ((~HPSV(r_ps2)) & 0x400) | 0x006; tk_on = false; tk0 = -1; printf("F2 released at frame %d\n", fr);
+        }
+    }
     printf("%d frames after the load; the last: %d rows of up to %d pixels, frame period %llu clocks\n", frames_done - start_frames, rows_last, width_last, frame_period);
     unsigned nonblack = 0; for (unsigned v : frame_last) if (v) nonblack++;
     printf("last captured frame: %u non-black pixels\n", nonblack);
+
+    if (getenv("NVOUT")) {      // the EEPROM's save: the OSD opens (or Save EEPROM), the core asks for an upload of index 4, the HPS reads the 128 bytes
+        const bool force = getenv("NVSAVE") && atoi(getenv("NVSAVE"));
+        const int req0 = HPSV(upload_reqs);
+        printf("nv: dirty %d before the %s\n", (int)dut->rootp->tb_emu_top__DOT__u_emu__DOT__nv_dirty, force ? "Save EEPROM" : "OSD opens");
+        if (force) { set_status(13, 1); run(2000); set_status(13, 0); }
+        else { dut->OSD_STATUS = 1; run(2000); }
+        const int reqs = HPSV(upload_reqs) - req0;
+        printf("nv: %d upload request(s)\n", reqs);
+        if (reqs) {
+            HPSV(r_index) = 4; HPSV(r_upload) = 1; run(8);
+            unsigned char buf[128];
+            for (int a = 0; a < 128; a++) { HPSV(r_addr) = a; run(6); buf[a] = HPSV(r_din_seen); }
+            HPSV(r_upload) = 0; run(8);
+            HPSV(r_index) = 0; HPSV(r_addr) = 0; run(64);
+            printf("nv: dirty %d after the upload\n", (int)dut->rootp->tb_emu_top__DOT__u_emu__DOT__nv_dirty);
+            FILE *f = fopen(getenv("NVOUT"), "wb"); if (f) { fwrite(buf, 1, 128, f); fclose(f); }
+            printf("nv: saved to %s:", getenv("NVOUT")); for (int a = 0; a < 32; a++) printf(" %02x", buf[a]); printf(" ...\n");
+        }
+        dut->OSD_STATUS = 0; run(2000);
+        if (getenv("NVEXPECT") && atoi(getenv("NVEXPECT")) != reqs) { printf("  FAIL: %d upload requests, expected %s\n", reqs, getenv("NVEXPECT")); errors++; }
+    }
 
     {   // Scale: the size the core asks the scaler for, against the framework's documented rule: the picture is scaled up by the largest whole factor that fits the
         // scaler's height; its width follows the aspect ratio (V-Integer) or is a whole multiple of the pixel row (the HV modes: narrower = the multiple below the

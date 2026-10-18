@@ -9,6 +9,7 @@ module tb_emu_top #(
     input  logic        CLK_50M,
     input  logic        RESET,
     input  logic        dump_go,                // the SDRAM chip's first +SDRLEN bytes are written to +SDRDUMP
+    input  logic        OSD_STATUS,             // the OSD is open (the framework's port: the core's EEPROM save asks for an upload when it opens)
     output logic        CLK_VIDEO, CE_PIXEL,
     output logic  [7:0] VGA_R, VGA_G, VGA_B,
     output logic        VGA_HS, VGA_VS, VGA_DE,
@@ -37,7 +38,7 @@ module tb_emu_top #(
     wire  [12:0] SDRAM_A; wire [1:0] SDRAM_BA; wire [15:0] SDRAM_DQ;
     wire         UART_RTS, UART_TXD, UART_DTR;
     wire   [6:0] USER_OUT;
-    wire         CLK_AUDIO = 1'b0, SD_MISO = 1'b0, SD_CD = 1'b0, UART_CTS = 1'b0, UART_RXD = 1'b0, UART_DSR = 1'b0, OSD_STATUS = 1'b0;
+    wire         CLK_AUDIO = 1'b0, SD_MISO = 1'b0, SD_CD = 1'b0, UART_CTS = 1'b0, UART_RXD = 1'b0, UART_DSR = 1'b0;
     wire   [6:0] USER_IN = 7'h7f;
 
     emu u_emu (.*);

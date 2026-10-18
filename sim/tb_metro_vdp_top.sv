@@ -95,7 +95,7 @@ module tb_metro_vdp_top #(
   logic   noplane;
   initial noplane = $test$plusargs("NOPLANE");
   metro_vdp #(.GFX_AW(GFX_AW), .P_PIXDIV(PIXDIV), .P_H_TOTAL(HTOT), .P_VLAST(VLAST), .P_SPR_BUFFERED(1'b0), .P_IRQ_MODEL(1), .P_VBL_LINE(224), .P_TICK_LINES(32), .P_VLOG(VLOG), .P_LG_AW(LGAW)) dut (
-    .i_compat60(1'b0), .i_win_mame(winp != 0), .i_flip_force(1'b0), .i_pal_latch(palp != 0), .i_spr_early(earlyp != 0), .i_w304(w304p != 0), .i_w384(w384p != 0), .i_wide(widep != 0), .i_tall(tallp != 0), .i_i4100(i4100p != 0), .i_ext5(1'b0), .i_tmap_dx(tmap_dx), .i_tmap_dx1(tmap_dx1), .i_scan_irq(1'b0), .i_fsync(fsync_en), .i_i4300(i4300_en), .i_vbl_bit(3'd1), .i_blit_bit(3'd3), .i_irq0_pulse(1'b0), .i_vec_idx(3'd0), .o_irq_lvl(), .o_vec(), .i_irq_line_mask(8'hFF),
+    .i_compat60(1'b0), .i_win_mame(winp != 0), .i_flip_force(1'b0), .i_pal_latch(palp != 0), .i_spr_early(earlyp != 0), .i_w304(w304p != 0), .i_w384(w384p != 0), .i_wide(widep != 0), .i_tall(tallp != 0), .i_i4100(i4100p != 0), .i_ext5(1'b0), .i_tmap_dx(tmap_dx), .i_tmap_dx1(tmap_dx1), .i_h380(1'b0), .i_scan_irq(1'b0), .i_fsync(fsync_en), .i_i4300(i4300_en), .i_vbl_bit(3'd1), .i_blit_bit(3'd3), .i_irq0_pulse(1'b0), .i_vec_idx(3'd0), .o_irq_lvl(), .o_vec(), .i_irq_line_mask(8'hFF),
     .clk(clk), .rst_n(rst_n),
     .i_tim_rst(1'b0), .o_tim_evt(),
     .i_cs(cs), .i_addr(addr), .i_rnw(rnw), .i_be(be),

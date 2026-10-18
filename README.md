@@ -138,7 +138,7 @@ The zip of a GitHub release unpacks over the root of the SD card. By hand:
 | | |
 |---|---|
 | Joystick | directions, Button 1, Button 2, Button 3, Start, Coin (Dharma: button 1 only; Gun Master uses all three) |
-| Keyboard | 1 / 2 start, 5 / 6 coin, 9 service |
+| Keyboard | 1 / 2 start, 5 / 6 coin, 9 service, F2 test switch (MAME's key; only the I4300 boards have one: Mahjong Doukyuusei, Doukyuusei Special, Mouja, Gakuensai 1 / 2. Doukyuusei Special and Gakuensai keep their settings only in their test mode: hold F2 a moment, the test mode starts with its ROM check, which takes Gakuensai about 15 s; in Gakuensai's menu Ron = next page, N = previous) |
 | Mahjong panel (Mahjong Doukyuusei, Doukyuusei Special, Mouja, Gakuensai 1 / 2, Last Fortress Mah-jong) | keyboard, MAME's defaults: letters A-N, Left Ctrl = Kan, Left Shift = Reach, Space = Chi, Left Alt = Pon, Z = Ron, 1 = Start, 5 = Coin |
 
 The joystick word is laid out by the MRA's `<buttons>` list (bit 4 = first name): keep it in step with `Metro.sv` if you write your own MRA.
@@ -155,7 +155,12 @@ The joystick word is laid out by the MRA's `<buttons>` list (bit 4 = first name)
 | CRT Adjust (a page of its own) | Off / On, H-Size, H-Position, V-Shift | for the 15 kHz analog output of every game (it does nothing while the scandoubler is in use), after rmonic79's [MiSTer-CRT-Adjust](https://github.com/rmonic79/MiSTer-CRT-Adjust) (`modules/crt_adjust`) |
 | DIP switches | per game | the MRA's switches (coinage, difficulty, Flip Screen, Service Mode, ...); most are read by the game at start-up: change them and press Reset. **Flip Screen is the exception: the core flips the picture itself at once** |
 | Volume | Normal, -6 dB, -12 dB, +6 dB | |
+| Autosave EEPROM | On, Off | only on the games with an EEPROM (Mahjong Doukyuusei Special, Mahjong Gakuensai 1 / 2: their settings). On: when the OSD opens after the game has written its EEPROM, MiSTer saves it to the SD card |
+| Save EEPROM | | the same at once |
 | Reset | | restarts the machine |
+
+MiSTer keeps the EEPROM on the SD card as a `.nvm` file (the MRAs' `<nvram index="4" size="128"/>`) and loads it with the game. Its 128 bytes are laid out as MAME's
+`nvram/<set>/eeprom`, so settings made in MAME can be copied over (and back).
 
 The hardware test switches of the development builds (SDRAM read capture, Debug overlay, Plane fetch priority, CPU sprite write hold, Sound board, Tile RAM frame sync) are not in
 the release cores; build with `METRO_DEBUG` (see Build) to get them back. Every one is at the setting that was tested on the boards (the frame-synchronous tile RAM is on in `metrof64` and, in `metro` and `metrod64`, for the I4300 boards, Sankokushi and Mouse Shooter GoGo only).
@@ -182,22 +187,23 @@ of the games' own writes. `docs/status.md` has the measured results, the bugs fo
   the frame-synchronous tile RAM). In simulation, with MAME's own writes, Mouse Shooter GoGo's title and its four theatre screen changes equal MAME in every picture (before: one
   picture of each change showed the new scene in the old palette), and Sankokushi's sliding pictures lose the glitching rows at the top (16 of 36 pictures off before, 1 now).
   Both games show the picture one frame (16.7 ms) later, as MAME does.
+* **Release 20261018c** (`metro` and `metrod64` changed; confirmed on the boards: the F2 test switch, the saved settings, the 60 Hz; 20261018b was not tested and is replaced): the EEPROM of Mahjong Gakuensai 1 / 2 and
+  Mahjong Doukyuusei Special is saved (OSD Autosave EEPROM / Save EEPROM, the MRAs' `<nvram>`; in simulation the saved file equals MAME's byte for byte), F2 is the test
+  switch of the I4300 boards (the only way into those games' settings), and Bang Bang Ball / Battle Bubble run at MAME's 60 Hz.
 
 **Known issues**
 
 * Daitoride (the plain version, `metro`): single torn scanlines on the rising rocks (the YMF278B version on `metrod64` does not show them).
 * The Karate Tournament: rectangles in explosions were reported on an earlier build and not re-checked.
-* Mouse Shooter GoGo (`metrod64`): the theatre's scene changes were fixed in 20261018a (see Status); the small quirks reported earlier (flashing lines in the busy scenes)
-  were not re-checked on the boards.
 * Sankokushi (`metro`): while a picture slides in, the game blits ~10,000 words a frame, more than the log holds: those frames are drawn live as before (replay: 1 of 36
   pictures of the intro differs from MAME's).
-* Bang Bang Ball and Battle Bubble run at the core's 58.2 Hz (MAME: 60 Hz). Mahjong Gakuensai's EEPROM (settings) is not saved.
 * The family C boards' 68000 gets its program through the SDRAM cache: ROM reads wait 2 clocks on average (99.9 % within 8 clocks in simulation), and a loop of Gakuensai's runs at
   MAME's speed within 0.3 %. (An earlier note of "a quarter slower" counted bus cycles per frame, which is the bus utilisation, not the speed.)
 
 ## Video and sound
 
-The picture is MAME's: a 392 x 263 raster at 6.0 MHz dots (58.23 Hz) with the I4220's 320 x 224 (the 360-pixel games are re-timed for a CRT, `rtl/metro_vout.sv`). The renderer
+The picture is MAME's: a 392 x 263 raster at 6.0 MHz dots (58.23 Hz) with the I4220's 320 x 224 (the 360-pixel games are re-timed for a CRT, `rtl/metro_vout.sv`); Bang Bang
+Ball and Battle Bubble run at MAME's 60 Hz for them (lines of 380 dots: 60.03 Hz, 15.79 kHz). The renderer
 is Hyper Duel's (see Credits) with the Metro changes marked `METRO:` in `rtl/metro_render.sv` and `rtl/metro_vdp.sv`. Family F adds the 053936 plane (`rtl/metro_roz.sv`).
 
 Sound: the real uPD78C10 running the game's program with YM2413 (IKAOPLL) or YM2151 (jt51) and OKI M6295 (jt6295) on the older boards, the ES8712 ADPCM on Varia Metal, the

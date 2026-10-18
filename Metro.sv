@@ -87,6 +87,8 @@ localparam CONF_STR = {
 	"DIP;",
 	"-;",
 	"O[9:8],Volume,Normal,-6 dB,-12 dB,+6 dB;",
+	"H5O[12],Autosave EEPROM,On,Off;",
+	"H5T[13],Save EEPROM;",
 `ifdef METRO_DEBUG
 	"O[20],SDRAM read capture,Normal,Late;",
 	"O[22:21],Debug overlay,Off,Small,Large;",
@@ -131,6 +133,11 @@ wire  [15:0] ioctl_index;
 wire  [26:0] ioctl_addr;
 wire   [7:0] ioctl_dout;
 wire         dl_busy;
+wire         ioctl_upload;
+wire   [7:0] ioctl_din;
+reg          nv_req = 1'b0;
+localparam [7:0] NV_INDEX = 8'd4;    // the EEPROM's file: the MRA's <nvram index="4" size="128"/>
+wire         ee_board;               // the board has the 93C46 (Doukyuusei Special, Gakuensai 1 / 2): shows the EEPROM entries of the OSD
 
 wire  [31:0] joystick_0, joystick_1;
 wire  [10:0] ps2_key;
@@ -143,7 +150,7 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 
 	.buttons(buttons),
 	.status(status),
-	.status_menumask({11'd0, ~no_rotate, ~status[101], 1'b0, rot_none, direct_video}),
+	.status_menumask({10'd0, ~ee_board, ~no_rotate, ~status[101], 1'b0, rot_none, direct_video}),
 	.forced_scandoubler(forced_scandoubler),
 	.direct_video(direct_video),
 	.gamma_bus(gamma_bus),
@@ -154,6 +161,11 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 	.ioctl_addr(ioctl_addr),
 	.ioctl_dout(ioctl_dout),
 	.ioctl_wait(dl_busy),
+	.ioctl_upload(ioctl_upload),
+	.ioctl_upload_req(nv_req),
+	.ioctl_upload_index(NV_INDEX),
+	.ioctl_din(ioctl_din),
+	.ioctl_rd(),
 
 	.joystick_0(joystick_0),
 	.joystick_1(joystick_1),
@@ -172,8 +184,8 @@ end
 
 ///////////////////////   CONTROLS   ///////////////////////
 
-// keyboard: 1/2 start, 5/6 coin, 9 service (MAME's defaults)
-reg key_start1, key_start2, key_coin1, key_coin2, key_service;
+// keyboard: 1/2 start, 5/6 coin, 9 service, F2 the test switch (MAME's defaults; the test switch is a button only on the I4300 boards, the others have a Service Mode DIP)
+reg key_start1, key_start2, key_coin1, key_coin2, key_service, key_test;
 // the mahjong panel (family D): letters A-N, Kan = Left Ctrl, Reach = Left Shift, Chi = Space, Pon = Left Alt, Ron = Z (MAME's defaults); 1 = start
 reg [13:0] mj_ltr;                                  // A..N
 reg        mj_kan, mj_reach, mj_chi, mj_pon, mj_ron;
@@ -187,6 +199,7 @@ always @(posedge clk_sys) begin
 			9'h02E: key_coin1   <= ps2_key[9];
 			9'h036: key_coin2   <= ps2_key[9];
 			9'h046: key_service <= ps2_key[9];
+			9'h006: key_test    <= ps2_key[9];      // F2
 			9'h01C: mj_ltr[0]   <= ps2_key[9];      // A
 			9'h032: mj_ltr[1]   <= ps2_key[9];      // B
 			9'h021: mj_ltr[2]   <= ps2_key[9];      // C
@@ -225,15 +238,17 @@ wire [15:0] in1 = ~{1'b0, j2_b3, j2_b2, j2_b1, j2_r, j2_l, j2_d, j2_u,
                     1'b0, j1_b3, j1_b2, j1_b1, j1_r, j1_l, j1_d, j1_u};
 wire [15:0] in2 = (cfg_board == 8'd17) ? {8'h00, sw[2]} : 16'hFFFF;
 
-// family D.  Mahjong Doukyuusei (board 14): IN0 (VDP + 0x78882) bit 1 coin 1, bit 2 service 1 (active low); the panel is a 5 x 6 matrix (gakusai_state::input_r), rows 0..3 below (bit 5 of row 0 = start 1).
-// Mouja (board 15): IN0 = P1 / P2 joysticks (bit 1 up, 2 down, 3 left, 4 right, 5-7 buttons 1-3; P2 the same from bit 9), IN1 bit 2 start 1, 3 start 2, 4 coin 1, 5 coin 2, 6 service 1, IN2 unused.
-wire [15:0] dk_in0 = {12'hFFF, 1'b1, ~key_service, ~coin1, 1'b1};
+// family D.  Mahjong Doukyuusei (board 14): IN0 (VDP + 0x78882) bit 1 coin 1, bit 2 service 1, bit 3 the test switch (active low; also Doukyuusei Special, Gakuensai 1 / 2,
+// whose settings are only in the test mode); the panel is a 5 x 6 matrix (gakusai_state::input_r), rows 0..3 below (bit 5 of row 0 = start 1).
+// Mouja (board 15): IN0 = P1 / P2 joysticks (bit 1 up, 2 down, 3 left, 4 right, 5-7 buttons 1-3; P2 the same from bit 9), IN1 bit 2 start 1, 3 start 2, 4 coin 1, 5 coin 2, 6 service 1,
+// 7 the test switch, IN2 unused.
+wire [15:0] dk_in0 = {12'hFFF, ~key_test, ~key_service, ~coin1, 1'b1};
 wire [23:0] mj_rows = ~{ 2'b00, mj_pon, mj_ltr[11], mj_ltr[7], mj_ltr[3],                   // row 3: D H L Pon
                          1'b0, mj_ron, mj_chi, mj_ltr[10], mj_ltr[6], mj_ltr[2],             // row 2: C G K Chi Ron
                          1'b0, mj_reach, mj_ltr[13], mj_ltr[9], mj_ltr[5], mj_ltr[1],        // row 1: B F J N Reach
                          start1, mj_kan, mj_ltr[12], mj_ltr[8], mj_ltr[4], mj_ltr[0] };      // row 0: A E I M Kan Start
 wire [15:0] mo_in0 = ~{j2_b3, j2_b2, j2_b1, j2_r, j2_l, j2_d, j2_u, 1'b0, j1_b3, j1_b2, j1_b1, j1_r, j1_l, j1_d, j1_u, 1'b0};
-wire [15:0] mo_in1 = ~{8'h00, 1'b0, key_service, coin2, coin1, start2, start1, 2'b00};
+wire [15:0] mo_in1 = ~{8'h00, key_test, key_service, coin2, coin1, start2, start1, 2'b00};
 // Varia Metal (board 17): P1_P2 (0x200000): P2 in the low byte, P1 in the high byte: up, down, left, right, buttons 1-3, start; SYSTEM (0x200002): bit 0 coin 1, 1 coin 2, 2 tilt, 3 service 1, 4 service 2
 wire [15:0] vm_in1 = ~{start1, j1_b3, j1_b2, j1_b1, j1_r, j1_l, j1_d, j1_u, start2, j2_b3, j2_b2, j2_b1, j2_r, j2_l, j2_d, j2_u};
 wire [15:0] vm_in0 = {11'h7FF, 1'b1, ~key_service, 1'b1, ~coin2, ~coin1};
@@ -282,6 +297,30 @@ wire  [7:0] cfg_board;
 wire        ee_ld_wr;                                    // Doukyuusei Special's EEPROM contents from the loader
 wire  [6:0] ee_ld_addr;
 wire  [7:0] ee_ld_data;
+wire        ee_written;                                  // the game wrote its EEPROM
+
+// The 93C46 EEPROM (the settings of Mahjong Doukyuusei Special and Mahjong Gakuensai 1 / 2) to the SD card: the MRA's <nvram index="4" size="128"/>.  Main_MiSTer sends the saved
+// file after the ROMs (a download with index 4; the machine is held in reset meanwhile) and reads the EEPROM back (an upload with index 4) when the core asks for it
+// (ioctl_upload_req): when the OSD opens after the game has written the EEPROM (OSD Autosave EEPROM On, the default) and on Save EEPROM.  The file is MAME's nvram/<set>/eeprom
+// (128 bytes, little-endian words), so a MAME save can be copied over.  With a fast load the file can come while the image is still being replayed: once it has come, the image's
+// default contents (bytes 0x100..0x17F) are not written (nv_loaded, cleared when the next ROM download starts).  Without a saved file the image's contents stay, as before.
+assign      ee_board = (cfg_board == 8'd16) || (cfg_board == 8'd20) || (cfg_board == 8'd21);
+wire        nv_dl = ioctl_download && (ioctl_index[7:0] == NV_INDEX);
+wire        nv_ul = ioctl_upload && (ioctl_index[7:0] == NV_INDEX);
+wire        nv_wr = nv_dl && ioctl_wr && (ioctl_addr[26:7] == 20'd0);
+reg         nv_loaded = 1'b0;
+reg         nv_dirty = 1'b0, nv_ul_d = 1'b0, osd_d = 1'b0, save_d = 1'b0;
+always @(posedge clk_sys) begin
+	if (dl_start) nv_loaded <= 1'b0;
+	else if (nv_wr) nv_loaded <= 1'b1;
+	nv_ul_d <= nv_ul;
+	osd_d   <= OSD_STATUS;
+	save_d  <= status[13];
+	nv_req  <= ee_board && ((nv_dirty && !status[12] && OSD_STATUS && !osd_d) || (status[13] && !save_d));
+	// the image's contents, the restored file and the saved one are not news (a write while it is being saved is)
+	if (ee_written) nv_dirty <= 1'b1;
+	else if (rom_dl || nv_dl || (nv_ul && !nv_ul_d)) nv_dirty <= 1'b0;
+end
 wire  [1:0] cfg_rot, cfg_scramble;
 assign rot_none = (cfg_rot == 2'd0) || (cfg_rot == 2'd2);
 assign vid_wide = ((cfg_board >= 8'd8) && (cfg_board <= 8'd12)) || (cfg_board == 8'd16);          // 8 Pang Pom's, 9 Sky Alert, 10 / 11 Last Fortress, 12 Poitto, 16 Doukyuusei Special (384 pixels)
@@ -411,7 +450,7 @@ metro_sdram sdram
 wire        reset_sw = RESET | status[0] | buttons[1];
 // the machine is held while a ROM loads and until the memory is up; registered, it fans out to the whole core
 reg         mc_rst_r = 1'b1;
-always @(posedge clk_sys) mc_rst_r <= reset_sw | rom_dl | fast_dl | dl_busy | ~mem_ready | ~pll_locked;
+always @(posedge clk_sys) mc_rst_r <= reset_sw | rom_dl | fast_dl | dl_busy | nv_dl | ~mem_ready | ~pll_locked;
 assign mc_rst = mc_rst_r;
 
 wire        cen_phi1, cen_phi2;
@@ -523,7 +562,9 @@ metro_main #(.GFX_AW(GAW)) u_main
 	.rom_req(rom_req), .rom_addr(rom_addr), .rom_ack(rom_ack), .rom_data(rom_data),
 	.gfx_req(gfx_req), .gfx_addr(gfx_addr), .gfx_len(gfx_len), .gfx_data(gfx_data), .gfx_valid(gfx_valid), .gfx_size(cfg_gfxsize),
 	.in0(d_in0), .in1(d_in1), .dsw0({sw[1], sw[0]}), .dsw1({sw[3], sw[2]}), .in2(fam_f ? f_in2 : in2), .o_roz_ctrl(), .o_sr3_req(sr3_req), .o_sr3_we(sr3_we), .o_sr3_addr(sr3_addr), .o_sr3_wdata(sr3_wdata), .o_sr3_be(sr3_be), .i_sr3_rdata(sr3_rdata), .i_sr3_ack(sr3_ack),
-	.i_mj(mj_rows), .i_ee_ld_wr(ee_ld_wr), .i_ee_ld_addr(ee_ld_addr), .i_ee_ld_data(ee_ld_data), .d_ym_wr(d_ym_wr), .d_ym_a0(d_ym_a0), .d_oki_wr(d_oki_wr), .d_data(d_data), .d_oki_status(d_oki_status), .oki_a(oki_addr), .oki_a22(oki_a22), .fam_d_o(fam_d_o),
+	.i_mj(mj_rows), .i_ee_ld_wr(ee_ld_wr && !nv_loaded && !nv_wr), .i_ee_ld_addr(ee_ld_addr), .i_ee_ld_data(ee_ld_data),
+	.i_ee_nv_wr(nv_wr), .i_ee_nv_addr(ioctl_addr[6:0]), .i_ee_nv_data(ioctl_dout), .i_ee_nv_raddr(ioctl_addr[6:0]), .o_ee_nv_rdata(ioctl_din), .o_ee_written(ee_written),
+	.d_ym_wr(d_ym_wr), .d_ym_a0(d_ym_a0), .d_oki_wr(d_oki_wr), .d_data(d_data), .d_oki_status(d_oki_status), .oki_a(oki_addr), .oki_a22(oki_a22), .fam_d_o(fam_d_o),
 	.o_es_wr(es_wr), .o_es_rst(es_rst), .o_es_a(es_a), .o_es_d(es_d), .o_es_bank(es_bank), .i_es_irq(es_irq),
 	.snd_cmd(snd_cmd), .snd_cmd_wr(snd_cmd_wr), .snd_busy(snd_busy),
 	.hs(hs), .vs(vs), .de(de), .hblank(hblank), .vblank(vblank), .ce_pix(ce_pix), .r5(r5), .g5(g5), .b5(b5),

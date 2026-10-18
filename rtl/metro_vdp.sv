@@ -137,6 +137,7 @@ module metro_vdp #(
     input  logic i_tall,                   // METRO: 1 = 240 lines (Karate Tournament, Lady Killer, Sankokushi: MAME's visible area 0..239), the vblank interrupt then comes at line 240; 0 = 224
     input  logic i_ext5,                   // METRO: 1 = external vblank interrupt (cause bit 5): Karate Tournament, Lady Killer, Last Fortress VG460, Sankokushi (metro.cpp karatour_vblank_irq)
     input  logic i_i4100,                  // METRO: 1 = Imagetek I4100 (no 8bpp / 16x16 tiles; the sprite priority register is at 0x78802), 0 = I4220 / I4300
+    input  logic i_h380,                   // METRO: 1 = 380 dots a line instead of P_H_TOTAL (392): 263 lines at 60.03 Hz, MAME's 60 Hz of Bang Bang Ball / Battle Bubble (set_refresh_hz(60))
     input  logic i_scan_irq,               // METRO: Puzzli's interrupt model (metro.cpp bangball_scanline): no periodic tick; at line 224 causes 4 + 0, on every line before it cause 1 while enable bit 1 is clear
     input  logic i_fsync,                  // METRO: 1 = frame-synchronous picture on a board that is not an I4300 (Sankokushi): the tile RAM log (the blitter's writes go through it, in order), the sprite list and the registers copied at MAME's render line
     input  logic i_i4300,                  // METRO: 1 = Imagetek I4300 (family D): its own register map (v3_map, folded onto the I4220's layout below), a level and a vector per cause bit, no periodic tick
@@ -183,6 +184,7 @@ module metro_vdp #(
   // METRO: the visible size is the board's (MAME i4100_config_360x224 / i4220_config_320x240 ...): static, registered.  The horizontal sync pulse moves behind a 360 pixel picture (it
   // would overlap the last 24 pixels at P_HS_BEG = 336), the vertical one stays 8 lines behind the picture.
   logic [8:0] h_vis, v_vis, hs_beg, hs_end, vs_beg, vs_end;
+  logic [8:0] h_last;                      // the last dot of a line (i_h380: 379; the sync pulse is then 28 dots, 8 dots after the picture, and ends 24 dots before the next line as in the 392-dot line)
   // METRO: the tile table copy below is for the tall I4100 boards only (Karate Tournament, Lady Killer, Moeyo Gonta: board 7); the 360-pixel I4100 games (Pang Pom's, Sky Alert,
   // Last Fortress, Poitto) look right as they are and are left alone.
   // METRO: the tile table copy (below) is also used on the I4300 boards (Doukyuusei, Mouja, Doukyuusei Special): their games change the whole picture by rewriting the 1024-word
@@ -191,8 +193,9 @@ module metro_vdp #(
   always_ff @(posedge clk) begin
     h_vis  <= i_w384 ? 9'd384 : i_w304 ? 9'd304 : i_wide ? 9'd360 : 9'd320;
     v_vis  <= i_tall ? 9'd240 : 9'd224;
-    hs_beg <= i_wide ? 9'(P_HS_BEG + 28) : 9'(P_HS_BEG);
-    hs_end <= i_wide ? 9'(P_HS_END + 20) : 9'(P_HS_END);
+    hs_beg <= i_wide ? 9'(P_HS_BEG + 28) : i_h380 ? 9'd328 : 9'(P_HS_BEG);
+    hs_end <= i_wide ? 9'(P_HS_END + 20) : i_h380 ? 9'd356 : 9'(P_HS_END);
+    h_last <= i_h380 ? 9'd379 : 9'(H_TOTAL - 1);
     vs_beg <= (i_tall ? 9'd240 : 9'd224) + 9'd8;
     vs_end <= (i_tall ? 9'd240 : 9'd224) + 9'd12;
   end
@@ -454,6 +457,10 @@ module metro_vdp #(
   assign o_ce_pix = ce_pix;
 
   wire tim_rst = FREE_TIMING ? i_tim_rst : !rst_n;
+  // the line's last dot, registered: hcnt holds for P_PIXDIV (>= 2) clocks, so the compare is ready at the pixel enable (a compare against the h_last register in front of
+  // the line-start enables did not meet 96 MHz in metrod64; the constant compare it replaced did)
+  logic h_at_last;
+  always_ff @(posedge clk) h_at_last <= (hcnt == h_last);
   always_ff @(posedge clk) begin
     if (tim_rst) begin
       pixdiv <= '0;
@@ -462,7 +469,7 @@ module metro_vdp #(
     end else begin
       pixdiv <= (32'(pixdiv) == P_PIXDIV - 1) ? '0 : pixdiv + 1'b1;
       if (ce_pix) begin
-        if (32'(hcnt) == H_TOTAL - 1) begin
+        if (h_at_last) begin
           hcnt <= '0;
           vcnt <= (vcnt == vlast) ? '0 : vcnt + 1'b1;
         end else
@@ -478,10 +485,10 @@ module metro_vdp #(
   // selects the legacy MAME-assumed 262-line frame (60.011 Hz) for
   // displays that reject 60.24 Hz in sync-locked HDMI modes.
   wire [8:0] vlast = i_compat60 ? 9'(P_VLAST + 1) : 9'(P_VLAST);
-  wire line_start   = ce_pix && (32'(hcnt) == H_TOTAL - 1);
+  wire line_start   = ce_pix && h_at_last;
   wire [8:0] next_v = (vcnt == vlast) ? 9'd0 : vcnt + 9'd1;
   // FREE_TIMING: the pixel enable that ends the last line (line 0 follows)
-  assign o_tim_evt = ce_pix && (32'(hcnt) == H_TOTAL - 1) && (vcnt == vlast);
+  assign o_tim_evt = ce_pix && h_at_last && (vcnt == vlast);
 
   // v12 display line: scan-out runs behind the game timeline
   // (invisible). Measured on silicon (ladder probe, 2026-07-18): the

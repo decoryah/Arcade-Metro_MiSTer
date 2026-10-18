@@ -19,5 +19,5 @@ emu.register_frame_done(function()
   fr_now = scr:frame_number()
   if fr_now >= f0 and fr_now <= f1 then out:write(string.format("F %.9f %d\n", now(), fr_now)); out:flush() end
 end)
-local here = (debug.getinfo(1, "S").source:match("^@(.*)[/\]") or ".")
+local here = (debug.getinfo(1, "S").source:match("^@(.*)[/\\]") or ".")
 dofile(os.getenv("VS_LUA") or (here .. "/vstate.lua"))
