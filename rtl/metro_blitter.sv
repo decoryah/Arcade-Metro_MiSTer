@@ -47,6 +47,7 @@ module metro_blitter #(
     output logic [15:0] o_vram_wmask,
 
     output logic        o_busy,
+    output logic        o_pend,            // METRO: a start is queued behind the blit in progress (one deep)
     output logic        o_done
 );
 
@@ -90,6 +91,7 @@ module metro_blitter #(
   assign o_busy = (state != S_IDLE);
   // METRO: one start that arrives while a blit runs (or is held) is kept and runs next (MAME executes every blit the moment the register is written; the chip would drop it).
   logic        q_v;
+  assign o_pend = q_v;
   logic [31:0] q_tmap, q_src, q_dst;
   wire  [31:0] go_tmap = q_v ? q_tmap : i_tmap;
   wire  [31:0] go_src  = q_v ? q_src  : i_src;

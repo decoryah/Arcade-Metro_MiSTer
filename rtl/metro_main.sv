@@ -120,6 +120,7 @@ module metro_main #(
     logic        tmr_fire;
     logic        fam_d_r, mouja_r, dsp_r;           // the board's family (registered from the board id below); dsp_r = Doukyuusei Special
     logic        fam_c_r, msgogo_r, bl_r;                 // family C (22 msgogo, 23 balcube, 24 daitoa): I4220 + YMF278B on the 68000 bus, no sound CPU
+    logic        fsync_r;                           // Sankokushi (13) and Mouse Shooter GoGo (22): the picture is built the way MAME builds it (tile RAM log, blits through it)
     logic        gk1_r, gk2_r;                      // Mahjong Gakuensai (20) / Gakuensai 2 (21): Doukyuusei Special's map with the sound chips, the OKI banks and the 93C46 at other addresses
     wire iack = FC2 & FC1 & FC0 & ~ASn;
 
@@ -210,6 +211,7 @@ module metro_main #(
         tall_r  <= (i_board == 8'd7 || i_board == 8'd13 || i_board == 8'd20 || i_board == 8'd21);          // Gakuensai: 320 x 240 (i4300_config_320x240)
         fam_d_r <= (i_board == 8'd14 || i_board == 8'd15 || i_board == 8'd16 || i_board == 8'd20 || i_board == 8'd21);
         mouja_r <= (i_board == 8'd15);
+        fsync_r <= (i_board == 8'd13 || i_board == 8'd22);
         dsp_r   <= (i_board == 8'd16);
         fam_c_r <= (i_board == 8'd22 || i_board == 8'd23 || i_board == 8'd24 || i_board == 8'd25 || i_board == 8'd26);
         bl_r    <= (i_board == 8'd26);
@@ -291,7 +293,11 @@ module metro_main #(
     localparam int P_LG_AW_ON = 12;                   // 4,096 slots (Blazing Tornado's continue screen: 3,980 words)
 `elsif D_VLOG
     localparam bit P_VLOG_ON = 1'b1;                  // the I4300 boards (Mahjong Doukyuusei / Gakuensai ...): the same log, active only on those boards (the I4100 / I4220 boards stay live)
-    localparam int P_LG_AW_ON = 11;                   // 2,048 slots (the biggest frame of the boards' replays: 1,313 slots; a frame that does not fit is drawn live as before)
+`ifdef F64
+    localparam int P_LG_AW_ON = 12;                   // 4,096 slots: Mouse Shooter GoGo's scene changes (the blitter writes the new picture through the log: 2,048 slots let three of its four theatre changes tear)
+`else
+    localparam int P_LG_AW_ON = 11;                   // 2,048 slots (the biggest frame of the I4300 boards' replays: 1,313 slots; Sankokushi's frames of ~10,000 blit words do not fit any log and are drawn live as before)
+`endif
 `else
     localparam bit P_VLOG_ON = 1'b0;
     localparam int P_LG_AW_ON = 12;
@@ -312,7 +318,7 @@ module metro_main #(
         .i_gfx_size(gfx_size),
         .i_compat60(1'b0), .i_win_mame(win_mame), .i_flip_force(flip_force), .i_pal_latch(pal_latch), .i_spr_early(early_r), .i_tick_slow(msgogo_r), .i_tmap_dx(tdx_r ? 4'd2 : 4'd0), .i_tmap_dx1(tdx1_r ? 4'd8 : 4'd0),
         .i_roz_en(f_r), .i_vlog_en(!i_vlog_off), .i_roz_prio(i_roz_prio), .i_no_hold(i_no_hold), .o_roz_frame(rz_frame), .o_roz_used(rz_used), .i_roz_done(rz_done), .o_roz_bank(rz_bank), .o_roz_x(rz_x), .i_roz_pen(rz_pen), .i_roz_op(rz_op),
-        .i_roz_req(rz_rq_req), .i_roz_addr(rz_rq_addr), .i_roz_len(rz_rq_len), .o_roz_wr(rz_wr), .o_roz_idx(rz_idx), .o_roz_data(rz_data), .o_roz_ack(rz_ack), .i_w304(vm_r || f_r), .i_w384(dsp_r), .i_wide(wide_r), .i_tall(tall_r), .i_i4100(i4100_r), .i_ext5(ext5_r), .i_scan_irq(scan_r), .i_irq_line_mask(8'hFF),
+        .i_roz_req(rz_rq_req), .i_roz_addr(rz_rq_addr), .i_roz_len(rz_rq_len), .o_roz_wr(rz_wr), .o_roz_idx(rz_idx), .o_roz_data(rz_data), .o_roz_ack(rz_ack), .i_w304(vm_r || f_r), .i_w384(dsp_r), .i_wide(wide_r), .i_tall(tall_r), .i_i4100(i4100_r), .i_ext5(ext5_r), .i_fsync(fsync_r), .i_scan_irq(scan_r), .i_irq_line_mask(8'hFF),
         .i_i4300(fam_d_r), .i_vbl_bit(3'd1), .i_blit_bit(mouja_r ? 3'd2 : 3'd3), .i_irq0_pulse(tmr_fire), .i_vec_idx(eab[3:1]), .o_irq_lvl(vdp_lvl), .o_vec(vdp_vec),
         .o_dbg_vdp_write(), .o_dbg_line_start(), .o_dbg_rnd_done(), .o_dbg_lb_nonzero(), .o_dbg_palw(), .o_dbg_ovr(vdp_ovr),
         .o_dbg_rend_sx2_0(), .o_dbg_rend_sx2_1(), .o_dbg_rend_sx2_2(),

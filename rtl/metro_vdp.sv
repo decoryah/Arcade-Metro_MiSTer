@@ -138,6 +138,7 @@ module metro_vdp #(
     input  logic i_ext5,                   // METRO: 1 = external vblank interrupt (cause bit 5): Karate Tournament, Lady Killer, Last Fortress VG460, Sankokushi (metro.cpp karatour_vblank_irq)
     input  logic i_i4100,                  // METRO: 1 = Imagetek I4100 (no 8bpp / 16x16 tiles; the sprite priority register is at 0x78802), 0 = I4220 / I4300
     input  logic i_scan_irq,               // METRO: Puzzli's interrupt model (metro.cpp bangball_scanline): no periodic tick; at line 224 causes 4 + 0, on every line before it cause 1 while enable bit 1 is clear
+    input  logic i_fsync,                  // METRO: 1 = frame-synchronous picture on a board that is not an I4300 (Sankokushi): the tile RAM log (the blitter's writes go through it, in order), the sprite list and the registers copied at MAME's render line
     input  logic i_i4300,                  // METRO: 1 = Imagetek I4300 (family D): its own register map (v3_map, folded onto the I4220's layout below), a level and a vector per cause bit, no periodic tick
     input  logic [2:0] i_vbl_bit,          // I4300: the cause bit the vblank sets (MAME's set_vblank_irq_level, 1)
     input  logic [2:0] i_blit_bit,         // I4300: the cause bit the blitter's end sets (set_blit_irq_level, 2 or 3)
@@ -372,7 +373,9 @@ module metro_vdp #(
   logic [15:0] r_spr_pri_q, r_spr_yoff_q, r_spr_xoff_q, r_spr_color_q, r_scr_xoff_q, r_scr_yoff_q;
   logic [5:0]  r_layer_pri_q;
   logic [11:0] r_bg_q;
-  wire         rg_snap = i_i4300 && !i_scan_irq;
+  wire         fsync_e = i_fsync && P_VLOG;             // (the frame-synchronous picture of a board that is not an I4300 needs the log)
+  wire         fs_en   = i_i4300 || fsync_e;           // the frame-synchronous picture (I4300 boards with the blit queue; i_fsync boards with the blitter writing into the log)
+  wire         rg_snap = fs_en && !i_scan_irq;
   logic [15:0] r_window [6];   // y0,x0,y1,x1,y2,x2
   logic [15:0] r_scroll [6];
   // METRO (20261009e): the window and scroll registers as they were when the sprite RAM copy started, and what the renderer uses (except on Puzzli's board, which draws raster effects
@@ -552,7 +555,7 @@ module metro_vdp #(
 `else
                    : i_roz_en ? (v_vis + 9'(crtc_vfirst_q))
 `endif
-                   : i_i4300 ? v_vis                    // I4300 boards: MAME's render line (see below)
+                   : fs_en ? v_vis                      // I4300 boards (and fsync_e): MAME's render line (see below)
                    : (((!P_VBL_FOLLOWS_WINDOW && !i_tall) || crtc_vfirst_q == 8'd0) ? vlast : (i_tall ? 9'(crtc_vfirst_q) : 9'(crtc_vfirst_q) - 9'd1));
   end
   // METRO (I4100 boards): the tile table copy.  Lady Killer and Karate Tournament rewrite the whole 2 KB tile table with the 68000 every frame (tile definitions read from the graphics
@@ -563,15 +566,24 @@ module metro_vdp #(
   // line the renderer draws (v_vis + vfirst + 2), one word a clock through the live table's idle port B (1026 clocks, the renderer is idle then); the picture then uses the table as it
   // was at the end of the frame before (a frame older than MAME's, but every line from the same table).
   logic [10:0] tts_i;
-  logic        tts_busy;
+  logic        tts_busy, tts_arm;
+  logic        lg_pre_ok;                                // P_VLOG: everything logged before the frame's cut is in the RAM (1 without the log)
   wire  [8:0]  tts_line = v_vis + 9'(crtc_vfirst_q) + 9'd2;
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       tts_busy <= 1'b0;
+      tts_arm  <= 1'b0;
       tts_i    <= '0;
-    end else if (line_start && next_v == tts_line && !tts_busy) begin
+    end else if (line_start && next_v == tts_line && !tts_busy && lg_pre_ok) begin
       tts_busy <= 1'b1;
       tts_i    <= '0;
+      tts_arm  <= 1'b0;
+    end else if (line_start && next_v == tts_line && !tts_busy) begin
+      tts_arm  <= 1'b1;                                          // P_VLOG: the frame's writes (the table's words among them) are not in the RAM yet: the copy waits for them
+    end else if (tts_arm && lg_pre_ok && !tts_busy) begin
+      tts_busy <= 1'b1;
+      tts_i    <= '0;
+      tts_arm  <= 1'b0;
     end else if (tts_busy) begin
       tts_i <= tts_i + 11'd1;
       if (tts_i == 11'd1025) tts_busy <= 1'b0;
@@ -1110,11 +1122,12 @@ module metro_vdp #(
   logic        bl_we;
   logic [1:0]  bl_layer;
   logic [15:0] bl_addr, bl_wdata, bl_wmask;
-  logic        bl_busy;
+  logic        bl_busy, bl_pend;
+  logic        bl_log_hold, bl_log_we;         // i_fsync boards: the blitter's write goes into the log (the blitter waits while the log cannot take it)
 
   metro_blitter #(.GFX_AW(GFX_AW)) u_blit (
     .clk(clk), .rst_n(rst_n),
-    .i_start(i_i4300 ? bq_go : bl_start_go), .i_hold(bl_hold && !bq_force),
+    .i_start(i_i4300 ? bq_go : bl_start_go), .i_hold(fsync_e ? bl_log_hold : (bl_hold && !bq_force)),
     .i_tmap(i_i4300 ? {30'd0, bq_h_tmap} : {blit_regs[0], blit_regs[1]}),
     .i_src (i_i4300 ? bq_h_src           : {blit_regs[2], blit_regs[3]}),
     .i_dst (i_i4300 ? {8'd0, bq_h_dst}   : {blit_regs[4], blit_regs[5]}),
@@ -1122,7 +1135,7 @@ module metro_vdp #(
     .i_rom_data(bl_rom_data), .i_rom_valid(bl_rom_valid),
     .o_vram_we(bl_we), .o_vram_layer(bl_layer), .o_vram_addr(bl_addr),
     .o_vram_wdata(bl_wdata), .o_vram_wmask(bl_wmask),
-    .o_busy(bl_busy), .o_done(bl_done_raw)
+    .o_busy(bl_busy), .o_pend(bl_pend), .o_done(bl_done_raw)
   );
   assign bl_rom_data = i_rom_data;        // METRO: the blitter reads 16 aligned bytes at a time (8 words)
 
@@ -1310,7 +1323,6 @@ module metro_vdp #(
   // trigger with the queue full, runs the queue at once (order kept; that picture tears as before).  The done interrupt follows the trigger by 500 us, as MAME's timer does
   // (a trigger within the 500 us re-arms it).  Other boards are untouched.
   logic        lg_mode, lg_hold, lg_acc, lg_quiet;      // P_VLOG: see the block below (declared here: the queue's pop waits for the log)
-  logic        lg_pre_ok;                                // P_VLOG: everything logged before the frame's cut is in the RAM (1 without the log)
   localparam int BQ_DEPTH = 8;
   (* ramstyle = "MLAB" *) logic [57:0] bq_mem [0:BQ_DEPTH-1];
   logic [2:0]  bq_wp, bq_rp;
@@ -1319,6 +1331,7 @@ module metro_vdp #(
   logic        bq_irq;
   wire         bq_tmap_ok = ({blit_regs[0], blit_regs[1]} >= 32'd1) && ({blit_regs[0], blit_regs[1]} <= 32'd3);
   wire         bq_push = i_i4300 && bl_start && bq_tmap_ok;
+  wire         bq_irq_set = fs_en && bl_start && bq_tmap_ok;        // the done interrupt of MAME's 500 us timer: the I4300 boards and the i_fsync boards
   wire         bq_pend = i_i4300 && (bq_cnt != 4'd0 || bq_go);
   wire         bq_full = (bq_cnt == 4'(BQ_DEPTH));
   wire         bq_trig = i_i4300 && i_cs && !i_rnw && ((i_addr & 19'h7FFFE) == 19'h7884C);   // the trigger write the 68000 is making
@@ -1334,7 +1347,7 @@ module metro_vdp #(
     end else begin
       bq_go  <= bq_pop;
       bq_irq <= (bq_irq_cnt == 16'd1);
-      if (bq_push)               bq_irq_cnt <= 16'd48000;
+      if (bq_irq_set)            bq_irq_cnt <= 16'd48000;
       else if (bq_irq_cnt != 16'd0) bq_irq_cnt <= bq_irq_cnt - 16'd1;
       if (bq_push) begin
         bq_mem[bq_wp] <= {blit_regs[1][1:0], blit_regs[2], blit_regs[3], blit_regs[4][7:0], blit_regs[5]};
@@ -1349,7 +1362,7 @@ module metro_vdp #(
       else if (bq_pop && bq_rel != 4'd0) bq_rel <= bq_rel - 4'd1;
     end
   end
-  assign blit_done = i_i4300 ? bq_irq : bl_done_raw;
+  assign blit_done = fs_en ? bq_irq : bl_done_raw;       // fsync_e boards: MAME's timer too (their blits take 4 - 5 clocks a word through the log; the game's interrupt handler and its main loop both program blits, and the order of the two depends on when the done interrupt comes)
   wire in_tt      = (i_addr >= 19'h78000 && i_addr < 19'h78800);
   wire [1:0] rmw_lyr = 2'((i_addr - 19'h75000) >> 12);
   wire [10:0] rmw_o  = i_addr[11:1];
@@ -1386,7 +1399,7 @@ module metro_vdp #(
                    && (in_vram || in_rmw) && !bl_busy && !bl_start_h && !bq_pend && dir_ok;
 
   // the log being applied (P_VLOG) and the blitter never write together with the 68000 (the log is empty while the blitter runs): they are merged first, from registers
-  wire         x_we  = ap_we_v || bl_we;
+  wire         x_we  = ap_we_v || (bl_we && !(fsync_e && lg_mode));
   wire [15:0]  x_addr = ap_we_v ? ap_a_addr : bl_addr;
   wire [15:0]  x_d    = ap_we_v ? ap_a_data : bl_wdata;
   wire [1:0]   x_be   = ap_we_v ? ap_a_be   : {bl_wmask[15], bl_wmask[0]};
@@ -1499,7 +1512,7 @@ module metro_vdp #(
     logic        ap_pend, ap_rel, cut_pend, cut_par, cut_par_q;
     wire lg_quiet_c = (lg_wp == lg_rp) && (a_st == A_IDLE) && !ap_we_v && !pq_busy && !ro_v;
     logic quiet_q, mode_q, full_q;
-    wire  mode_c = (i_roz_en || i_i4300) && i_vlog_en && (i_i4300 || (!bl_busy && !bl_start_h));
+    wire  mode_c = (i_roz_en || fs_en) && i_vlog_en && (fs_en || (!bl_busy && !bl_start_h));
     always_ff @(posedge clk) begin                                            // registered: they decide the 68000's access, which must not wait for a compare of the pointers
       quiet_q <= lg_quiet_c;
       mode_q  <= mode_c;
@@ -1516,16 +1529,18 @@ module metro_vdp #(
     logic        ovl_ok;                                                      // the scan of the pending read is done: ovl_val / ovl_m are its words
     wire need_quiet  = !lg_mode;
     wire scan_req    = lg_mode && cpu_wants && i_rnw && (s_st == S_IDLE) && !ovl_ok;
-    assign lg_hold   = cpu_wants && (!lg_mode ? !lg_quiet : (i_rnw ? !ovl_ok : (lg_full2 || pq_busy)));
+    assign lg_hold   = cpu_wants && (!lg_mode ? !lg_quiet : (i_rnw ? !ovl_ok : (lg_full2 || pq_busy || (fsync_e && (bl_busy || bl_log_we)))));   // fsync_e: the 68000's tile write waits for the blit in progress (its words are in the log first, as MAME's blit is done at the trigger)
     assign lg_acc    = lg_mode && cpu_wants && !i_rnw && !lg_hold;
+    assign bl_log_hold = lg_mode && (lg_full2 || pq_busy || bl_we);
+    assign bl_log_we   = fsync_e && bl_we && lg_mode;
     wire [1:0]  w_sel  = in_tt ? 2'd3 : cpu_wr_lyr;
     wire [15:0] w_addr = in_tt ? {6'd0, i_addr[10:1]} : cpu_vword;
 
     // ---- blitter: its start waits for an empty log
-    assign bl_start_go = bl_start_h && lg_quiet;
+    assign bl_start_go = fsync_e ? bl_start : (bl_start_h && lg_quiet);
     always_ff @(posedge clk) begin
       if (!rst_n)                       bl_start_h <= 1'b0;
-      else if (bl_start && !i_i4300)    bl_start_h <= 1'b1;                    // (the I4300 boards' blits go through the queue)
+      else if (bl_start && !fs_en)      bl_start_h <= 1'b1;                    // (the I4300 boards' blits go through the queue)
       else if (bl_start_h && lg_quiet)  bl_start_h <= 1'b0;
     end
 
@@ -1534,7 +1549,7 @@ module metro_vdp #(
     // frame): the writes of the vblank handler (lines v_vis ... 262, 0 ...) belong to MAME's NEXT frame and must not be applied before this picture is done.  The log is
     // applied only once the renderer has been kicked for the last displayed line (kicks_done, v_vis + crtc_vfirst) and is done: the window of crtc_vfirst lines between the two
     // (11 on Mahjong Doukyuusei Special's / Mouja's CRTC) is written to the log after the cut and belongs to the next picture (Mouja's "INSERT COIN" blinked a frame early)
-    wire [8:0]  cut_line = i_i4300 ? v_vis : spr_copy_line;
+    wire [8:0]  cut_line = fs_en ? v_vis : spr_copy_line;
     logic       kicks_done;
     always_ff @(posedge clk) begin
       if (cut_ev) kicks_done <= 1'b0;
@@ -1544,8 +1559,15 @@ module metro_vdp #(
     wire [8:0]  dl_line  = (crtc_vfirst_q >= 8'd4) ? 9'(crtc_vfirst_q) - 9'd3 : 9'd0;   // before the first displayed line is kicked: apply whatever is left
     wire        dl_ev    = line_start && (next_v == dl_line);
     wire        head_par = kick_fifo[kf_rd][105];
-    wire        ren_done = (kf_cnt == 4'd0 || head_par != cut_par) && !rnd_busy && !rnd_start && !pop_pend && (!i_i4300 || kicks_done);
-    wire        force_all = (cpu_wants && (need_quiet || (!i_rnw && lg_full2))) || bl_start_h;
+    wire        ren_done = (kf_cnt == 4'd0 || head_par != cut_par) && !rnd_busy && !rnd_start && !pop_pend && (!fs_en || kicks_done);
+    // fsync_e: a blit or a 68000 write that finds the log full (a frame of more words than the log holds: Sankokushi's sliding pictures are ~10,000 blit words a frame) empties it completely and keeps
+    // it empty while the blit runs (the picture of that frame is drawn live, as before the log): forcing one slot at a time left the log full, its words 2,000 - 4,000 slots behind the RAM
+    logic       fdr;
+    always_ff @(posedge clk)
+      if (!rst_n)                                  fdr <= 1'b0;
+      else if (fsync_e && lg_full2 && (bl_busy || (cpu_wants && !i_rnw))) fdr <= 1'b1;
+      else if (lg_rp == lg_wp && !ro_v)            fdr <= 1'b0;
+    wire        force_all = (cpu_wants && (need_quiet || (!i_rnw && lg_full2))) || bl_start_h || fdr;
     wire [LG_N-1:0] tgt  = force_all ? lg_wp : lg_cut;
     wire        more     = (lg_rp != tgt);
     wire        drain    = (a_st == A_IDLE) && (ap_rel || force_all) && more && !scan_req && (s_st == S_IDLE) && !(i_i4300 && bl_busy);
@@ -1580,8 +1602,9 @@ module metro_vdp #(
         sc_sel <= 2'd0; sc_be <= 2'd3; t_sel <= 2'd0; sc_cur <= 16'd0; sc_d <= 16'd0; t_addr <= 16'd0;
       end else begin
         // ---- push
-        pq_v <= lg_acc;
+        pq_v <= lg_acc || bl_log_we;
         if (lg_acc) begin pq_sel <= w_sel; pq_addr <= w_addr; pq_be <= i_be; pq_data <= i_wdata; end
+        else if (bl_log_we) begin pq_sel <= bl_layer; pq_addr <= bl_addr; pq_be <= {bl_wmask[15], bl_wmask[0]}; pq_data <= bl_wdata; end
         pf_v <= pq_v;
         if (pq_v) begin
           pf_seq  <= lw_v && (pq_sel == lw_sel) && (pq_addr == lw_addr + 16'd1) && (pq_be == lw_be);
@@ -1611,7 +1634,7 @@ module metro_vdp #(
         end
         // ---- the group of the frame: cut at the copy instant (after a write in flight), released when the renderer is done
         if (cut_ev) begin cut_pend <= 1'b1; cut_par_q <= frame_par; end
-        if (cut_pend && !pq_busy) begin
+        if (cut_pend && !pq_busy && !(fsync_e && (bl_busy || bl_pend || bl_we))) begin     // fsync_e: a blit is whole in one picture (MAME runs it at its trigger): the cut waits for the one in progress
           lg_cut <= lg_wp + {{(LG_N-1){1'b0}}, ro_v};
           cut_pend <= 1'b0; ap_pend <= 1'b1; ap_rel <= 1'b0; cut_par <= cut_par_q;
         end else begin
@@ -1711,6 +1734,8 @@ module metro_vdp #(
     assign ap_a_be = 2'd0;
     assign bl_start_go = bl_start;
     assign bl_start_h = 1'b0;
+    assign bl_log_hold = 1'b0;
+    assign bl_log_we = 1'b0;
     assign lg_st_w = 16'd0;
     assign ovl_val = 16'd0;
     assign ovl_m   = 16'd0;
@@ -1858,6 +1883,23 @@ module metro_vdp #(
     end
   end
 
+  // METRO (20261015b): the read's region decode and the register read mux, registered every clock: B_RD2 uses them (the address is stable from B_IDLE
+  // on and `ra` from B_RD1, so the values of B_RD1 are the read's own).  Combinational, the 0x788xx / 0x797xx compares -> the region priority -> o_rdata
+  // were one path (-0.49 ns on the 81 % fit).  A register that changes in that very clock is read as it was one clock earlier.
+  logic        rd_vr_q, rd_tt_q, rd_pal_q, rd_spr_q, rd_scr_q, reg_hit_q;
+  logic [1:0]  rd_lyr_q;
+  logic [15:0] reg_rdata_q;
+  always_ff @(posedge clk) begin
+    rd_vr_q     <= in_vram || in_rmw;
+    rd_lyr_q    <= in_rmw ? rmw_lyr : vlyr;
+    rd_tt_q     <= in_tt;
+    rd_pal_q    <= in_pal;
+    rd_spr_q    <= in_spr;
+    rd_scr_q    <= in_scratch;
+    reg_hit_q   <= reg_hit;
+    reg_rdata_q <= reg_rdata;
+  end
+
   // bus FSM
   wire [GFX_AW-1:0] gfx_addr_c = GFX_AW'((32'(r_rombank) << 16)
                                          + 32'(i_addr[15:1]) * 2);
@@ -1917,17 +1959,17 @@ module metro_vdp #(
         B_RD1: bst <= B_RD2;    // wait registered read
 
         B_RD2: begin
-          if (in_vram || in_rmw) begin
-            unique case (in_rmw ? rmw_lyr : vlyr)
+          if (rd_vr_q) begin
+            unique case (rd_lyr_q)
               2'd0: o_rdata <= (q_vram0 & ~ovl_m) | (ovl_val & ovl_m);
               2'd1: o_rdata <= (q_vram1 & ~ovl_m) | (ovl_val & ovl_m);
               default: o_rdata <= (q_vram2 & ~ovl_m) | (ovl_val & ovl_m);
             endcase
-          end else if (in_tt)      o_rdata <= (q_tt & ~ovl_m) | (ovl_val & ovl_m);
-          else if (in_pal)         o_rdata <= q_pal;
-          else if (in_spr)         o_rdata <= q_spr;
-          else if (in_scratch)     o_rdata <= q_scr;
-          else if (reg_hit)        o_rdata <= reg_rdata;
+          end else if (rd_tt_q)    o_rdata <= (q_tt & ~ovl_m) | (ovl_val & ovl_m);
+          else if (rd_pal_q)       o_rdata <= q_pal;
+          else if (rd_spr_q)       o_rdata <= q_spr;
+          else if (rd_scr_q)       o_rdata <= q_scr;
+          else if (reg_hit_q)      o_rdata <= reg_rdata_q;
           else                     o_rdata <= 16'h0000;
           bst <= B_ACK;
         end

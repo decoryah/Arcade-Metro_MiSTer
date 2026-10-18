@@ -371,11 +371,16 @@ module metro_render #(
     srcc_f = 16'((32'(i_window_x[layer]) + scx) & (big ? 32'hFFF : 32'h7FF));
   endfunction
 
+  // METRO (20261015b): the 16 x 16 tile flag of each layer, registered (the screen control register changes only on a 68000 write; one clock later is
+  // invisible).  Combinational, the layer mux of the control bits sat in front of the prefetch compare and the tile data enable (-0.47 ns on the 81 % fit).
+  logic [3:0]  big_r;
+  always_ff @(posedge clk) big_r <= {4{i_ext_tiles}} & i_screen_ctrl[8:5];
+
   always_comb begin
     logic [31:0] winw_m, winh_m, big_m;
     logic [31:0] resy, scy, srcl, srcc;
     int ts;
-    big  = i_ext_tiles && i_screen_ctrl[5 + 32'(layer)];
+    big  = big_r[layer];
     ts   = big ? 4 : 3;
     tsz  = big ? 5'd16 : 5'd8;
     winw_m = big ? 32'h3FF : 32'h1FF;
@@ -1011,11 +1016,11 @@ module metro_render #(
             n1 = {1'b1, s_group, s_prival,
                   spr_palbase | (s_bpp8 ? 12'(t1)
                                : ({4'd0, sattr[7:4], 4'd0} | 12'(t1)))};
-            if (we0 || we1) begin
-              spr_we    <= 1'b1;
-              spr_waddr <= wcur;
-              spr_wdata <= {we1 ? n1 : spr_q[39:20], we0 ? n0 : spr_q[19:0]};
-            end
+            // METRO (20261015b): address and data are loaded on every emit cycle, only the write strobe depends on the texels (the opaque test was the
+            // enable of 48 flip-flops: -0.46 ns on the 81 % fit).  The line buffer is written only with spr_we.
+            spr_we    <= we0 || we1;
+            spr_waddr <= wcur;
+            spr_wdata <= {we1 ? n1 : spr_q[39:20], we0 ? n0 : spr_q[19:0]};
             // both walk directions raise the source index by 2 per word
             s_xi0 <= s_xi0 + {11'd0, dx_q, 1'b0};
             s_xi1 <= s_xi1 + {11'd0, dx_q, 1'b0};

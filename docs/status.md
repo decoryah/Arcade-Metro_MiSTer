@@ -1281,6 +1281,95 @@ registered selects, frames 100 and 250: picture, VDP memories, registers, sprite
 and 600): identical.  `metrof64` seeds of the 20261014d sources: 1 setup -0.131 / hold -0.051, 2 +0.420 / +0.091, 4 +0.436 / +0.106, 3 +0.183 / hold -0.122; `Metro_F64.qsf` now
 carries seed 4 (the shipped `metrof64_20261014c.rbf` was fitted from the sources one register stage earlier, seed 3).
 
+## Releases 20261015a / 20261018a: Sankokushi and Mouse Shooter GoGo built the way MAME builds a frame (2026-10-15 / 18; `metro` and `metrod64`; confirmed on the boards)
+
+**Why.**  Videos of 2026-10-15: `IMG_8104` Sankokushi (glitching rows at the top of the picture while the lying woman slides in), `IMG_8095` Mouse Shooter GoGo (the theatre's
+screens do not change as smoothly as MAME's).  Mahjong Gakuensai's fifth girl (`IMG_8103`) is the game's own ghost frame (MAME shows the same; replay 0 px) and Blazing Tornado's
+yellow glyphs (`IMG_8105`) are the power-on RAM test's patterns: nothing to do for those two.
+
+**Cause.**  Both games rewrite the tile RAM with the blitter while the beam draws (Sankokushi: a blit every ~8.6 lines, ~28 a frame, ~10,000 words a frame while a picture slides;
+Mouse Shooter GoGo: the whole new scene of a theatre change, several thousand words in one frame) and rewrite the palette across the frame.  MAME runs a blit at its trigger and
+renders the frame once at line `v_vis`, so every row of its picture is from the same instant; the core drew the live RAM with the palette snapshot of the frame before, so a scene
+change showed one picture of the new tiles in the old palette (a full-colour flash of the new scene; MAME's picture there is black) and Sankokushi's rows above a blit showed the old
+picture.  Replays of MAME's own writes (`work/gkrp`: `mg_prep.sh`, `sk_prep.sh`, `run_mg.sh`, `cmpsum.py`) reproduced both: Mouse Shooter GoGo frames 1090 - 1170 (title -> theatre)
+9 of 80 pictures off, the other three changes (frames 1295, 1460, 1755) one picture each of 4,000 - 23,000 pixels; Sankokushi's intro (frames 1690 - 1726) 16 of 36 pictures off.
+
+**The change** (`rtl/metro_vdp.sv`, `rtl/metro_blitter.sv`, `rtl/metro_main.sv`).  The frame-synchronous tile RAM of the I4300 boards (the log, `P_VLOG`) is now also used by two
+I4220 boards (`i_fsync`: board 13 Sankokushi, board 22 Mouse Shooter GoGo) with the blitter writing through it:
+
+* the blit's words go into the log in order (`bl_log_we`), one word every 4 - 5 clocks: the log's write pipeline takes one write at a time, so the blitter waits for `pq_busy` and
+  for its own strobe (the first version let two writes overlap and lost words: black tiles in the picture).  The 68000's tile writes wait for the blit in progress (`lg_hold`);
+* the cut (`v_vis`) waits for the blit in progress and the one queued behind it (`bl_pend`, a new output of `metro_blitter`): a blit is whole in one picture, as MAME's is;
+* a frame that has more words than the log holds (`fdr`): the log is emptied completely and kept empty while the blit or the 68000 keeps writing (that frame is drawn live, as
+  before).  Forcing one slot at a time left the log full and its words 2,000 - 4,000 slots behind the RAM (Sankokushi: a hollow region in the picture);
+* the tile table copy of the tall boards waits until the frame's writes are in the RAM (`tts_arm`, `lg_pre_ok`; no change for the boards without the log);
+* the sprite list, the registers (`rg_snap`) and the palette are copied at `v_vis` as on the I4300 boards; the picture is one frame later than before (MAME's frame, replay
+  index `D + n - 1`);
+* the log is 4,096 slots in `metrod64` (`F64`: about 640 more ALMs) and 2,048 in `metro` (an I4300 frame needs 1,313 at most).  Mouse Shooter GoGo's scene changes need more than
+  2,048: three of the four theatre changes show one live-drawn picture with 2,048, none with 4,096.  The blit-done interrupt is still the blitter's own end.
+
+**Replays against MAME** (pictures that differ from MAME's frame; `mister/rtl` tree, shift 11 lines; "live" is 20261014d):
+
+```
+Mouse Shooter GoGo   frames       pictures   live                         20261015a (4,096)   (2,048)
+  title -> theatre   1090 - 1170      80     9 (44,000 px)                0                   0
+  theatre change     1295 - 1345      50     4 (23,918 px)                0                   1 (21,648 px)
+  theatre change     1460 - 1530      70     1 (4,152 px)                 0                   1 (11,280 px)
+  theatre change     1755 - 1845      90     4 (22,014 px)                0                   1 (30,520 px)
+  title scroll       780 - 860 / 860 - 960  80 / 100  0 / 0               0 / 0               0 / 0
+  rule board         2270 - 2370     100     1 (988 px)                   0                   0
+  rule board         2700 - 2780      80     60 (29,157 px, ~400 each)    0                   0
+Sankokushi           1690 - 1726      36     16 (55,333 px)               6 (10,615 px)       1 (11,324 px: a scene load)
+                     2000 - 2050      50     6 (17,823 px)                0                   0
+                     2250 - 2300      50     0                            0                   0
+                     3100 - 3170      70     2 (17,415 px)                0                   0
+                     4100 - 4160      60     1 (131 px)                   0                   0
+I4300 boards         dk300 400, dk3000 200, mj4000 200, dp4800 200, gt6700 200, gp11700 200 pictures:  0 differ in all, both log sizes (as in 20261014d)
+```
+
+(Sankokushi with 4,096 slots shows five pictures of 5 - 8 pixels more than with 2,048: not used, `metro` keeps 2,048.)
+
+**20261015a was withdrawn for Mouse Shooter GoGo** (sent, then found in the whole-machine bench before a hardware test): with the real 68000 the game stopped after its first blit
+chain (frame 71 of the sim) and never loaded a palette: black screen.  The game's interrupt handler and its main loop both program the blitter (the handler starts the next blit of a
+chain on the done interrupt, the main loop starts chains); a blit through the log takes 4 - 5 clocks a word instead of ~2, the done interrupt came after the next 480 Hz tick, the main
+loop was interrupted half-way through writing a blit's registers, the handler programmed and started the same blit, the main loop then wrote the rest and started it a second time,
+and the chain ran off its table (two triggers with tilemap 0).  The VDP write logs of the committed tree and of the new one (`+VDPWLOG`, `work/wm/run_wl.sh`) are identical up to that
+point.  **20261015b / 20261018a**: on the `i_fsync` boards the done interrupt is MAME's timer, 500 us after the trigger (re-armed by each trigger), as on the I4300 boards (`bq_irq_set`,
+`blit_done = fs_en ? bq_irq : bl_done_raw`): the game's own flow is then MAME's, which is also what the replays play.  The replays above do not model the interrupt and are unchanged.
+
+**Whole machine** (the real 68000 and SDRAM path, `work/wm`, `sim/run_sys.sh` with `SDR=1 DBUILD=1 DVLOG=1`, 20261015b tree; 20261018a draws the same, see below):
+
+```
+Sankokushi, frames 1690 - 1740 (the intro's sliding pictures), core frame n = MAME frame n - 14:     51 frames, 44 identical, 5 of 533 - 637 px, 2 scene-load frames (7,910 / 11,141 px)
+Mouse Shooter GoGo attract (no coin), frames 1105 - 1190 (title -> theatre), core n = MAME n - 25:  86 frames, 67 identical; the frame of MAME's garbage mosaic (1129) is the
+    bubbles picture again in the core (62,728 px: no flash, one clean frame instead of MAME's garbage); after the change 18 frames of 600 - 1,500 px (the mice's animation phase)
+Mouse Shooter GoGo with coin (120) and start (220): boots, palette and pictures at frames 100 - 300 (20261015a: black from frame 71 on)
+```
+
+**Timing (20261018a).**  `metrod64` with the 4,096-slot log (81 % of the ALMs) failed timing on every seed of 20261015b (seeds 1 - 5: -0.57 to -0.08 ns).  The worst
+paths were all older logic: the renderer's 16 x 16 tile flag (`r_ctrl` -> the layer mux -> `big` -> the prefetch compare -> the tile data enable), its sprite emit
+(texel -> opaque test -> the enable of the line buffer's address / data registers) and the video chip's CPU read mux (`ra` -> the 0x788xx / 0x797xx compares -> the region
+priority -> `o_rdata`).  Each got one register stage, none changes behaviour: `big_r` (`rtl/metro_render.sv`, the control register's tile size flags of the four layers,
+one clock later), the emit loads `spr_waddr` / `spr_wdata` on every cycle and only `spr_we` depends on the texels, and the read's region decode and register value
+(`rd_*_q`, `reg_hit_q`, `reg_rdata_q`, `rtl/metro_vdp.sv`) are taken in B_RD1 and used in B_RD2.  Checks: every replay of this section and of the I4300 boards (2,086 pictures)
+byte for byte identical to the 20261015b tree's; whole machine (`work/gkrp/run_dreg2.sh`, `run_creg.sh`: the committed tree against the working tree, frames 100 and 250,
+picture + VDP memories + registers + sprite list): 21 of the 22 games byte for byte identical (Mouse Shooter GoGo and Gakuensai among them: their frames 100 / 250 are
+boot screens); Sankokushi differs as it should (frame 100: the same picture, the palette / sprite RAM a fade step apart; frame 250: the title's scrolling tiles one frame
+apart), the pictures are clean.
+
+**Fits** (Quartus 17, build id `261018a`):
+
+| Core file | Macros | Seed | Setup (96 MHz) | Hold | ALMs | RAM blocks |
+|---|---|---|---|---|---|---|
+| `metro_20261018a` | `D_BUILD D_VLOG NO_YMF` | 5 | **+0.142 ns** (HDMI clock +0.151) | +0.104 ns | 31,946 (76 %) | 548 / 553 |
+| `metrod64_20261018a` | `D_BUILD D_VLOG F64` | 4 | **+0.092 ns** (HDMI clock +0.367) | +0.062 ns | 34,128 (81 %) | 549 / 553 |
+| `metrof64` | (unchanged: `metrof64_20261014c.rbf`; its logic does not use the new paths) | | | | | |
+
+Seeds of 20261018a: `metro` 4 -0.083 (the log's apply -> tile RAM write enable), 1 +0.057, 5 +0.142; `metrod64` 2 -0.069 (the 68000's data out -> its work RAM), 3 -0.085,
+4 +0.092, 5 -0.293.  20261015b (not released): `metro` 4 +0.088; `metrod64` 1 -0.566, 2 -0.487, 3 -0.075, 4 -0.486, 5 -0.088.  20261015a (withdrawn): `metro` 4 +0.282, `metrod64` 2 +0.065.
+
+**Hardware (the user, 2026-10-18, 20261018a): "Fixes work"** (Mouse Shooter GoGo's theatre changes, Sankokushi's sliding pictures).
+
 ## Open points
 
 Toolchain: WSL Ubuntu has Verilator 5.053 (`$HOME/tools/oss-cad-suite`), g++ 9.4, GNU make 4.2.1. Run WSL commands from PowerShell, or from Git Bash with `MSYS_NO_PATHCONV=1`.
@@ -1289,7 +1378,7 @@ Toolchain: WSL Ubuntu has Verilator 5.053 (`$HOME/tools/oss-cad-suite`), g++ 9.4
   show them; the frame-synchronous tile RAM of family F was **not** ported: its cost in logic and timing margin, a frame more latency and the blitter's start held for the log
   outweigh one game's few scanlines); Mahjong Doukyuusei's bright frame / intro flashes (fixed in 20261014b / d, confirmed on the board);
   The Karate Tournament's explosion rectangles (not re-checked since 20261010);
-  Mouse Shooter GoGo's small quirks (reported 2026-10-12; the VDP replays match MAME, cause not found).  Mahjong Gakuensai 1 / 2's glitches were the blitter's groups,
+  Mouse Shooter GoGo's small quirks (reported 2026-10-12; its theatre changes were fixed in 20261018a, confirmed on the board; the flashing lines of busy scenes were not re-checked); Sankokushi's sliding pictures (fixed in 20261018a, confirmed on the board; replays 1 of 36 pictures off).  Mahjong Gakuensai 1 / 2's glitches were the blitter's groups,
   fixed in 20261014a (confirmed on the board).
 * **Not done:** Mahjong Gakuensai's EEPROM is not saved; Bang Bang Ball / Battle Bubble run at 58.2 Hz (MAME 60 Hz: they use Puzzli's scanline interrupt model, the core's
   raster is the Dharma / Toride II one); the family C boards' 68000 program is read through the SDRAM cache: ROM reads wait 2 clocks on average (the "quarter slower"

@@ -158,7 +158,7 @@ The joystick word is laid out by the MRA's `<buttons>` list (bit 4 = first name)
 | Reset | | restarts the machine |
 
 The hardware test switches of the development builds (SDRAM read capture, Debug overlay, Plane fetch priority, CPU sprite write hold, Sound board, Tile RAM frame sync) are not in
-the release cores; build with `METRO_DEBUG` (see Build) to get them back. Every one is at the setting that was tested on the boards (the frame-synchronous tile RAM is on in `metrof64` and, for the I4300 boards only, in `metro` and `metrod64`).
+the release cores; build with `METRO_DEBUG` (see Build) to get them back. Every one is at the setting that was tested on the boards (the frame-synchronous tile RAM is on in `metrof64` and, in `metro` and `metrod64`, for the I4300 boards, Sankokushi and Mouse Shooter GoGo only).
 
 ## Status
 
@@ -178,13 +178,19 @@ of the games' own writes. `docs/status.md` has the measured results, the bugs fo
   Fortress, Poitto!, Mahjong Doukyuusei (+ Special) and Varia Metal. Mahjong Doukyuusei's flashes in the intro are gone since 20261014b / d.
 * **Release 20261014d**: the owner started every game of the three cores on the boards (32 MB and 64 MB modules): all work. Fast loading, the Scale option and the Doukyuusei /
   Gakuensai picture fixes were checked on the boards.
+* **Release 20261018a** (`metro` and `metrod64` changed; the two fixes confirmed on the boards; 20261015a was withdrawn for Mouse Shooter GoGo): Sankokushi and Mouse Shooter GoGo draw a frame the way MAME does (the blitter writes through
+  the frame-synchronous tile RAM). In simulation, with MAME's own writes, Mouse Shooter GoGo's title and its four theatre screen changes equal MAME in every picture (before: one
+  picture of each change showed the new scene in the old palette), and Sankokushi's sliding pictures lose the glitching rows at the top (16 of 36 pictures off before, 1 now).
+  Both games show the picture one frame (16.7 ms) later, as MAME does.
 
 **Known issues**
 
 * Daitoride (the plain version, `metro`): single torn scanlines on the rising rocks (the YMF278B version on `metrod64` does not show them).
 * The Karate Tournament: rectangles in explosions were reported on an earlier build and not re-checked.
-* Mouse Shooter GoGo (`metrod64`): small quirks (flashing lines in the busy scenes, the title scroll); a replay of MAME's own writes matches MAME to a few hundred pixels,
-  the cause is not found.
+* Mouse Shooter GoGo (`metrod64`): the theatre's scene changes were fixed in 20261018a (see Status); the small quirks reported earlier (flashing lines in the busy scenes)
+  were not re-checked on the boards.
+* Sankokushi (`metro`): while a picture slides in, the game blits ~10,000 words a frame, more than the log holds: those frames are drawn live as before (replay: 1 of 36
+  pictures of the intro differs from MAME's).
 * Bang Bang Ball and Battle Bubble run at the core's 58.2 Hz (MAME: 60 Hz). Mahjong Gakuensai's EEPROM (settings) is not saved.
 * The family C boards' 68000 gets its program through the SDRAM cache: ROM reads wait 2 clocks on average (99.9 % within 8 clocks in simulation), and a loop of Gakuensai's runs at
   MAME's speed within 0.3 %. (An earlier note of "a quarter slower" counted bus cycles per frame, which is the bus utilisation, not the speed.)

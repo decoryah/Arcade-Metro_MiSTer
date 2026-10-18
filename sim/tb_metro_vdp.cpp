@@ -172,6 +172,7 @@ int main(int argc, char** argv) {
     printf("tb_metro_vdp: state loaded via bus (%d frames elapsed)\n", frames_seen);
     t->vlog_en = 1;                                                                           // P_VLOG: the layer RAM goes through the log from here on (a no-op without the parameter)
     if (const char* i43 = plusarg(argc, argv, "+I4300=")) t->i4300_en = atoi(i43) != 0;      // a replay of an I4300 game's own writes (family D: MAME's addresses are the chip's native ones)
+    if (const char* fs = plusarg(argc, argv, "+FSYNC=")) t->fsync_en = atoi(fs) != 0;        // the frame-synchronous picture on a non-I4300 board (Sankokushi)
 
     // +REPLAY=<events> +REPLAYPFX=<prefix> +REPLAYN=<pictures>: let the picture settle for two frames, align the raster to the start of line 224 (= the time of the state dump, MAME's
     // frame_done), then play MAME's timed CPU writes (cycle = clocks after the dump, from work/b2/vdpwr.lua) and write every completed picture as <prefix>.<n>.ppm (n = 0: the first picture

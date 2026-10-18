@@ -13,7 +13,8 @@ module tb_metro_vdp_top #(
   parameter int PIXDIV = 32,      // system clocks per dot: 32 gives the renderer headroom, 16 with HTOT = 392 is the hardware (6272 clocks per line)
   parameter int HTOT = 424,
   parameter int VLAST = 260,      // 262 = the hardware raster (263 lines)
-  parameter bit VLOG = 1'b0       // 1 = the frame-synchronous layer RAM (metro_vdp.sv P_VLOG)
+  parameter bit VLOG = 1'b0,      // 1 = the frame-synchronous layer RAM (metro_vdp.sv P_VLOG)
+  parameter int LGAW = 12         // the log's size, 2 ** LGAW slots (metro_vdp.sv P_LG_AW; the D builds: 11, the 64 MB D build and family F: 12)
 ) (
     input  logic        clk,
     input  logic        rst_n,
@@ -28,6 +29,7 @@ module tb_metro_vdp_top #(
     input  logic [15:0] rz_wd,
     input  logic  [1:0] rz_wm,
     input  logic        vlog_en,         // P_VLOG: the driver keeps it 0 while it loads a scene (3 x 64K words through the bus), then 1
+    input  logic        fsync_en,        // the frame-synchronous picture on a board that is not an I4300 (Sankokushi): 0 while a scene loads
     input  logic        i4300_en,        // the I4300's own register map (family D): 0 while the driver loads a scene (internal addresses), 1 for a replay of MAME's native writes
     output logic        ack,
     output logic        ce_pix,
@@ -92,8 +94,8 @@ module tb_metro_vdp_top #(
   end
   logic   noplane;
   initial noplane = $test$plusargs("NOPLANE");
-  metro_vdp #(.GFX_AW(GFX_AW), .P_PIXDIV(PIXDIV), .P_H_TOTAL(HTOT), .P_VLAST(VLAST), .P_SPR_BUFFERED(1'b0), .P_IRQ_MODEL(1), .P_VBL_LINE(224), .P_TICK_LINES(32), .P_VLOG(VLOG)) dut (
-    .i_compat60(1'b0), .i_win_mame(winp != 0), .i_flip_force(1'b0), .i_pal_latch(palp != 0), .i_spr_early(earlyp != 0), .i_w304(w304p != 0), .i_w384(w384p != 0), .i_wide(widep != 0), .i_tall(tallp != 0), .i_i4100(i4100p != 0), .i_ext5(1'b0), .i_tmap_dx(tmap_dx), .i_tmap_dx1(tmap_dx1), .i_scan_irq(1'b0), .i_i4300(i4300_en), .i_vbl_bit(3'd1), .i_blit_bit(3'd3), .i_irq0_pulse(1'b0), .i_vec_idx(3'd0), .o_irq_lvl(), .o_vec(), .i_irq_line_mask(8'hFF),
+  metro_vdp #(.GFX_AW(GFX_AW), .P_PIXDIV(PIXDIV), .P_H_TOTAL(HTOT), .P_VLAST(VLAST), .P_SPR_BUFFERED(1'b0), .P_IRQ_MODEL(1), .P_VBL_LINE(224), .P_TICK_LINES(32), .P_VLOG(VLOG), .P_LG_AW(LGAW)) dut (
+    .i_compat60(1'b0), .i_win_mame(winp != 0), .i_flip_force(1'b0), .i_pal_latch(palp != 0), .i_spr_early(earlyp != 0), .i_w304(w304p != 0), .i_w384(w384p != 0), .i_wide(widep != 0), .i_tall(tallp != 0), .i_i4100(i4100p != 0), .i_ext5(1'b0), .i_tmap_dx(tmap_dx), .i_tmap_dx1(tmap_dx1), .i_scan_irq(1'b0), .i_fsync(fsync_en), .i_i4300(i4300_en), .i_vbl_bit(3'd1), .i_blit_bit(3'd3), .i_irq0_pulse(1'b0), .i_vec_idx(3'd0), .o_irq_lvl(), .o_vec(), .i_irq_line_mask(8'hFF),
     .clk(clk), .rst_n(rst_n),
     .i_tim_rst(1'b0), .o_tim_evt(),
     .i_cs(cs), .i_addr(addr), .i_rnw(rnw), .i_be(be),
